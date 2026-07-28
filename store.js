@@ -118,6 +118,18 @@ async function healthCheck() {
     e.setupRequired = true;
     throw e;
   }
+  // Back-filled attendance needs users.attendance_from.
+  try {
+    await select('users', 'select=attendance_from&limit=1');
+  } catch (err) {
+    const e = new Error(
+      'Your "users" table has no attendance_from column yet.\n' +
+      '    Run supabase/migration-backfill.sql in the Supabase SQL Editor,\n' +
+      '    then restart this server.'
+    );
+    e.setupRequired = true;
+    throw e;
+  }
   // Per-question deadlines are kept on the server, in exam_answers.opened_at.
   try {
     await select('exam_answers', 'select=opened_at&limit=1');
@@ -141,6 +153,7 @@ const toBatch = (r) => (!r ? null : {
   classStart: r.class_start ? String(r.class_start).slice(0, 5) : '',
   classEnd: r.class_end ? String(r.class_end).slice(0, 5) : '',
   classDays: Array.isArray(r.class_days) ? r.class_days : [],
+  startDate: r.start_date || null,
   isActive: r.is_active !== false,
   notes: r.notes || '',
   createdAt: r.created_at,
@@ -159,6 +172,8 @@ function toUser(r) {
     name: r.name || '',
     phone: r.phone || '',
     batchId: r.batch_id || null,
+    // The first day this student is counted from; null means their sign-up day.
+    attendanceFrom: r.attendance_from || null,
     batch,                               // the whole timetable, or null
     batchName: batch ? batch.name : '',
     course: batch ? batch.course : '',
@@ -182,7 +197,7 @@ const toMark = (r) => (!r ? null : {
   note: r.note,
 });
 
-const USER_COLS = 'id,reg_no,email,role,name,phone,batch_id,extra,is_active,' +
+const USER_COLS = 'id,reg_no,email,role,name,phone,batch_id,attendance_from,extra,is_active,' +
   'created_at,updated_at,last_login_at,batches(*)';
 
 /* ---------------------------------------------------------------- batches */
@@ -204,6 +219,7 @@ function batchRow(data) {
   const map = {
     name: 'name', course: 'course', classStart: 'class_start',
     classEnd: 'class_end', classDays: 'class_days', isActive: 'is_active', notes: 'notes',
+    startDate: 'start_date',
   };
   for (const [key, column] of Object.entries(map)) {
     if (data[key] !== undefined) row[column] = data[key];
@@ -312,6 +328,7 @@ async function updateUser(id, changes) {
   const map = {
     name: 'name', phone: 'phone', batchId: 'batch_id',
     email: 'email', role: 'role', isActive: 'is_active', extra: 'extra',
+    attendanceFrom: 'attendance_from',
   };
   for (const [key, column] of Object.entries(map)) {
     if (changes[key] !== undefined) row[column] = changes[key];

@@ -12,8 +12,8 @@
  *                                                            counts as ABSENT
  *
  * A day with no record is ABSENT — but only on that batch's class days, and
- * only from the day the student joined. Non-class days and dates before
- * sign-up are never counted against anyone.
+ * only from the day the student is accountable from (see accountableFrom).
+ * Non-class days are never counted against anyone.
  *
  * All times are wall-clock times in the school's timezone (APP_TIMEZONE, see
  * zone.js). The server's own timezone is never used, so this behaves the same
@@ -110,12 +110,35 @@ function currentWindow(user, now = new Date()) {
     message: `Your class ended at ${formatTime(batch.classEnd)}. Today is recorded as absent.` };
 }
 
+/**
+ * The first day this student is accountable for.
+ *
+ * Classes usually began before the portal did, so counting from the day someone
+ * created their account would ignore every earlier class. Three things can move
+ * the start earlier, and the earliest of them wins:
+ *
+ *   attendanceFrom  the teacher said "count this student from here"
+ *   createdAt       otherwise, the day they signed up
+ *   earliest mark   any attendance already recorded, including back-filled days
+ *
+ * The last one matters most in practice: filling in June automatically makes
+ * June count, with no extra setting to remember.
+ */
+function accountableFrom(user, marks = []) {
+  const base = user.attendanceFrom || localDate(new Date(user.createdAt));
+  let earliest = base;
+  for (const m of marks) {
+    if (m && m.date && m.date < earliest) earliest = m.date;
+  }
+  return earliest;
+}
+
 /** Every date the student was expected in class, oldest first. */
-function expectedDates(user, from, to) {
+function expectedDates(user, from, to, marks = []) {
   const batch = scheduleOf(user);
   if (!batch) return [];
 
-  const joined = localDate(new Date(user.createdAt));
+  const joined = accountableFrom(user, marks);
   const start = from && from > joined ? from : joined;
   const end = to || localDate();
   const out = [];
@@ -137,7 +160,7 @@ function expectedDates(user, from, to) {
 function buildReport(user, marks, { from, to } = {}) {
   const byDate = new Map(marks.map((m) => [m.date, m]));
   const today = localDate();
-  const dates = expectedDates(user, from, to).filter((d) => d <= today);
+  const dates = expectedDates(user, from, to, marks).filter((d) => d <= today);
 
   const daily = dates.map((date) => {
     const mark = byDate.get(date);
@@ -195,6 +218,6 @@ function buildReport(user, marks, { from, to } = {}) {
 
 module.exports = {
   localDate, toMinutes, minutesToHHMM, formatTime, isClassDay, scheduleOf,
-  currentWindow, expectedDates, buildReport,
+  currentWindow, expectedDates, buildReport, accountableFrom,
   DAY_NAMES, DAY_SHORT, GRACE_MINUTES, EARLY_WINDOW_MINUTES,
 };

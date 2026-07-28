@@ -204,6 +204,47 @@ ok('long past the end stays expired, never negative',
 ok('the slack is small enough to be useless for thinking',
   grading.DEADLINE_SLACK_SECONDS <= 5);
 
+
+/* ------------------------------------------------ back-filled attendance */
+section('filling in days from before sign-up');
+
+// This student signed up on 20 July, but the course began on 1 June.
+const lateSignup = { batchId: 'b1', batch, createdAt: '2026-07-20T00:00:00Z' };
+
+ok('by default they are counted from sign-up',
+  sched.accountableFrom(lateSignup, []) === '2026-07-20');
+
+// 1 June 2026 is a Monday, so Jun 1-5 are five weekday class days.
+const juneMarks = [
+  { date: '2026-06-01', status: 'present', markedAt: '2026-06-01T10:00:00Z' },
+  { date: '2026-06-02', status: 'late',    markedAt: '2026-06-02T10:30:00Z' },
+  { date: '2026-06-03', status: 'present', markedAt: '2026-06-03T10:00:00Z' },
+];
+
+ok('A BACK-FILLED DAY MOVES THE START BACK',
+  sched.accountableFrom(lateSignup, juneMarks) === '2026-06-01');
+
+const backfilled = sched.buildReport(lateSignup, juneMarks, { from: '2026-06-01', to: '2026-06-05' });
+ok('the June days now appear in the report', backfilled.total === 5, `got ${backfilled.total}`);
+ok('two present', backfilled.present === 2);
+ok('one late', backfilled.late === 1);
+ok('and the two unfilled class days count as absent', backfilled.absent === 2);
+ok('so the percentage covers June too', backfilled.percent === 60, `got ${backfilled.percent}`);
+
+const monthsBack = backfilled.monthly;
+ok('June has its own month bucket', monthsBack.some((m) => m.month === '2026-06'));
+
+// An explicit start date does the same without needing any marks first.
+const declared = { ...lateSignup, attendanceFrom: '2026-06-01' };
+ok('an explicit start date is honoured',
+  sched.accountableFrom(declared, []) === '2026-06-01');
+ok('and unmarked class days before sign-up count as absent',
+  sched.buildReport(declared, [], { from: '2026-06-01', to: '2026-06-05' }).absent === 5);
+
+// A genuinely new student must NOT be punished for the term before they joined.
+ok('a mid-course joiner is still counted from their own start',
+  sched.buildReport(lateSignup, [], { from: '2026-06-01', to: '2026-06-05' }).total === 0);
+
 /* ------------------------------------------------------------------ output */
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 process.exitCode = fail ? 1 : 0;

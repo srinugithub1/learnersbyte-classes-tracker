@@ -1039,3 +1039,29 @@ details.raw-text pre {
   .brand-sep { height: 24px; }
   .partner img { width: 30px; height: 30px; }
 }
+
+/* ------------------------------------------------- filling in past days */
+/* Four small buttons per row, so a teacher can work down a class quickly
+   without opening a dropdown for each student. */
+
+.setter { display: inline-flex; gap: 3px; }
+.setter button {
+  width: 30px; height: 28px; padding: 0;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  border-radius: 7px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2);
+  line-height: 1;
+}
+.setter button:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.setter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Pressed state carries the status colour AND keeps its symbol, so the choice
+   is never signalled by colour alone. */
+.setter button[data-set="present"][aria-pressed="true"] { background: var(--present); border-color: var(--present); color: #fff; }
+.setter button[data-set="late"][aria-pressed="true"]    { background: var(--late);    border-color: var(--late);    color: #3a2c05; }
+.setter button[data-set="absent"][aria-pressed="true"]  { background: var(--absent);  border-color: var(--absent);  color: #fff; }
+.setter button[data-set="clear"][aria-pressed="true"]   { background: var(--ink-2);   border-color: var(--ink-2);   color: #fff; }
+
+/* An edited row, so unsaved changes are obvious before pressing Save. */
+tr.changed { background: var(--accent-soft); }
+tr.changed td { border-bottom-color: var(--accent-line); }

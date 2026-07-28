@@ -96,6 +96,11 @@ function readBatchInput(body, { partial = false } = {}) {
   if (!partial || has('course')) out.course = cleanText(body.course, 'Course', { max: 80, required: !partial });
   if (has('notes')) out.notes = cleanText(body.notes, 'Notes', { max: 300, required: false });
   if (has('isActive')) out.isActive = Boolean(body.isActive);
+  if (has('startDate')) {
+    const d = String(body.startDate || '').slice(0, 10);
+    if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) fail('Pick a valid course start date.');
+    out.startDate = d || null;
+  }
 
   if (!partial || has('classStart') || has('classEnd')) {
     const classStart = cleanText(body.classStart, 'Class start time', { max: 5 });
@@ -1336,7 +1341,109 @@ const routes = {
       userId: student.id, date, status: body.status,
       note: body.note ? String(body.note).slice(0, 200) : null,
     });
+
+    // Recording a day earlier than the student's start would otherwise leave it
+    // invisible in every report, so move the start back to match.
+    const from = student.attendanceFrom || sched.localDate(new Date(student.createdAt));
+    if (body.status !== 'clear' && date < from) {
+      await store.updateUser(student.id, { attendanceFrom: date });
+    }
+
     send(res, 200, { ok: true });
+  },
+
+  /* Who was expected in class on a past date, and what is recorded for them.
+     This is the screen a teacher uses to fill in the days before the portal
+     existed. */
+  'GET /api/admin/attendance/day': async (req, res, url) => {
+    await requireAdmin(req);
+    const date = String(url.searchParams.get('date') || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) fail('Pick a valid date.');
+    if (date > sched.localDate()) fail('You cannot record attendance for a future date.');
+
+    const batchId = url.searchParams.get('batchId') || undefined;
+    const batch = batchId ? await store.getBatch(batchId) : null;
+    if (batchId && !batch) fail('Batch not found.', 404);
+
+    const [students, marks] = await Promise.all([
+      store.listUsers({ role: 'student', batchId }),
+      store.listAttendance({ from: date, to: date }),
+    ]);
+    const byUser = new Map(marks.map((m) => [m.userId, m]));
+
+    const rows = students
+      .filter((s) => s.batchId)
+      .map((student) => {
+        const mark = byUser.get(student.id) || null;
+        return {
+          student: {
+            id: student.id, regNo: student.regNo, name: student.name,
+            email: student.email, batchName: student.batchName,
+          },
+          // Was this a class day for THIS student's batch?
+          classDay: sched.isClassDay(student.batch, date),
+          status: mark ? mark.status : null,
+          markedAt: mark ? mark.markedAt : null,
+          source: mark ? mark.source : null,
+        };
+      });
+
+    send(res, 200, {
+      date,
+      batch,
+      weekday: sched.DAY_NAMES[zone.weekdayOf(date)],
+      rows: rows.sort((a, b) => a.student.name.localeCompare(b.student.name)),
+      counts: {
+        classDay: rows.filter((r) => r.classDay).length,
+        recorded: rows.filter((r) => r.status).length,
+      },
+    });
+  },
+
+  /* Save a whole day at once. Used by the fill-in screen so a teacher is not
+     making one request per student. */
+  'POST /api/admin/attendance/bulk': async (req, res) => {
+    await requireAdmin(req);
+    const body = await readBody(req);
+
+    const date = String(body.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) fail('Pick a valid date.');
+    if (date > sched.localDate()) fail('You cannot record attendance for a future date.');
+
+    const entries = Array.isArray(body.entries) ? body.entries : [];
+    if (!entries.length) fail('Nothing to save.');
+    if (entries.length > 500) fail('Too many students in one save.');
+
+    let saved = 0;
+    let cleared = 0;
+    const problems = [];
+
+    for (const entry of entries) {
+      if (!entry || !entry.userId) continue;
+      if (!['present', 'late', 'absent', 'clear'].includes(entry.status)) {
+        problems.push(`Bad status for ${entry.userId}`);
+        continue;
+      }
+      const student = await store.getUser(entry.userId);
+      if (!student) { problems.push(`Unknown student ${entry.userId}`); continue; }
+
+      await store.setAttendance({
+        userId: student.id,
+        date,
+        status: entry.status,
+        note: body.note ? String(body.note).slice(0, 200) : 'Filled in by teacher',
+      });
+      if (entry.status === 'clear') cleared++; else saved++;
+
+      // A day earlier than this student's start would otherwise not be counted,
+      // so move their start back to match what has just been recorded.
+      const from = student.attendanceFrom || sched.localDate(new Date(student.createdAt));
+      if (entry.status !== 'clear' && date < from) {
+        await store.updateUser(student.id, { attendanceFrom: date });
+      }
+    }
+
+    send(res, 200, { ok: true, date, saved, cleared, problems });
   },
 
   'GET /api/admin/log': async (req, res, url) => {

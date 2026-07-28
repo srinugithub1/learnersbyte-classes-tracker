@@ -54,6 +54,34 @@
 
     <div id="resetSlot"></div>
 
+    <!-- ---- filling in attendance for a past date ---- -->
+    <div class="card">
+      <header>
+        <div>
+          <h2>Fill in past attendance</h2>
+          <p>For class days before the portal was in use, or a day everyone forgot to mark.</p>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" id="backfillToggle">Open</button>
+      </header>
+
+      <div id="backfillBody" class="hidden">
+        <div class="filterbar" style="margin-bottom:14px">
+          <label class="field">
+            <span>Date</span>
+            <input type="date" id="backfillDate" />
+          </label>
+          <label class="field grow">
+            <span>Batch</span>
+            <select id="backfillBatch"><option value="">All batches</option></select>
+          </label>
+          <button class="btn" id="backfillLoad">Show students</button>
+        </div>
+
+        <div id="backfillResult"></div>
+      </div>
+    </div>
+
     <div class="card">
       <header>
         <div><h2>Today's roll call</h2><p id="dashDate">—</p></div>
