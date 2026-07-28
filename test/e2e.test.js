@@ -185,8 +185,17 @@ function localToday() {
   ok('the batch list is offered', Array.isArray(res.data.batches) && res.data.batches.length >= 1);
   ok('grace is reported as 15 minutes', res.data.graceMinutes === 15);
 
+  // Daily marking can be switched off (ATTENDANCE_ENABLED=false). When it is,
+  // the server refuses every mark, so these assertions would fail for a reason
+  // that is not a bug — report them as skipped instead of red.
+  const MARKING_ON = res.data.features ? res.data.features.attendance !== false : true;
+  if (!MARKING_ON) {
+    console.log('  --    attendance marking is switched off; skipping the marking checks');
+  }
+
   res = await student('/api/student/attendance', { method: 'POST' });
-  ok('marking without a batch is refused', res.status === 409);
+  if (MARKING_ON) ok('marking without a batch is refused', res.status === 409);
+  else ok('marking is refused while it is switched off', res.status === 403, `got ${res.status}`);
 
   res = await student('/api/student/profile', { method: 'POST', body: { batchId } });
   ok('student can join a batch', res.status === 200, JSON.stringify(res.data));
@@ -203,19 +212,36 @@ function localToday() {
 
   /* ---------------------------------------------------------- attendance */
   section('attendance');
-  res = await student('/api/student/attendance', { method: 'POST' });
-  ok('student can mark attendance', res.status === 201, JSON.stringify(res.data));
-  const firstStatus = res.data.record && res.data.record.status;
-  ok('status is present within the 15 min grace', firstStatus === 'present', `got ${firstStatus}`);
+  if (MARKING_ON) {
+    res = await student('/api/student/attendance', { method: 'POST' });
+    ok('student can mark attendance', res.status === 201, JSON.stringify(res.data));
+    const firstStatus = res.data.record && res.data.record.status;
+    ok('status is present within the 15 min grace', firstStatus === 'present', `got ${firstStatus}`);
 
-  res = await student('/api/student/attendance', { method: 'POST' });
-  ok('second click does not create a second record', res.data.already === true);
-  ok('duplicate returns the original status', res.data.record.status === firstStatus);
+    res = await student('/api/student/attendance', { method: 'POST' });
+    ok('second click does not create a second record', res.data.already === true);
+    ok('duplicate returns the original status', res.data.record.status === firstStatus);
 
-  res = await student('/api/student/dashboard');
-  ok('dashboard shows today as marked', res.data.todayMark !== null);
-  ok('report counts one present day', res.data.report.present === 1);
-  ok('report shows 100%', res.data.report.percent === 100);
+    res = await student('/api/student/dashboard');
+    ok('dashboard shows today as marked', res.data.todayMark !== null);
+    ok('report counts one present day', res.data.report.present === 1);
+    ok('report shows 100%', res.data.report.percent === 100);
+  } else {
+    // Marking is switched off. Prove the switch holds, then let the teacher
+    // record the day so the rest of the run has something to report on.
+    res = await student('/api/student/attendance', { method: 'POST' });
+    ok('a student cannot mark while it is switched off', res.status === 403, `got ${res.status}`);
+    ok('and is told why', /paused/i.test(res.data.error || ''), res.data.error);
+
+    res = await admin('/api/admin/attendance', {
+      method: 'POST', body: { userId: studentId, date: localToday(), status: 'present' },
+    });
+    ok('but the teacher can still record it', res.status === 200, JSON.stringify(res.data));
+
+    res = await student('/api/student/dashboard');
+    ok('and the student sees it', res.data.todayMark !== null);
+    ok('report counts one present day', res.data.report.present === 1);
+  }
 
   /* --------------------------------------------------------------- admin */
   section('admin');

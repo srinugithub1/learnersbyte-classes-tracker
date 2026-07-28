@@ -29,6 +29,22 @@ const PORT = process.env.PORT || 3000;
 /** Why the app cannot serve requests, or null if it can. Set during boot, and
  *  read on every request so a broken setup explains itself. */
 let STARTUP_PROBLEM = null;
+
+/**
+ * Daily attendance marking can be switched off for a while — during exam week,
+ * a holiday, or while records are being corrected.
+ *
+ * Set ATTENDANCE_ENABLED=false to turn it off. Hiding the tab in the browser
+ * would not be enough on its own: the API would still accept a mark from anyone
+ * who knew the address, so it is refused here as well.
+ *
+ * Teachers are unaffected — they can still record and correct any day.
+ */
+const attendanceEnabled = () =>
+  !['false', '0', 'off', 'no'].includes(String(process.env.ATTENDANCE_ENABLED || 'true').trim().toLowerCase());
+
+const ATTENDANCE_OFF_MESSAGE = process.env.ATTENDANCE_OFF_MESSAGE
+  || 'Attendance marking is paused at the moment. Your teacher will record it for you.';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 /** Base64 inflates by ~4/3, so this allows roughly a 12 MB question paper. */
@@ -177,7 +193,14 @@ async function studentSnapshot(user) {
   const todayMark = marks.find((m) => m.date === window.date) || null;
   // Only needed on the "choose your batch" screen.
   const batches = user.batchId ? [] : await store.listBatches({ activeOnly: true });
-  return { user, window, todayMark, report, batches, graceMinutes: sched.GRACE_MINUTES };
+  return {
+    user, window, todayMark, report, batches,
+    graceMinutes: sched.GRACE_MINUTES,
+    features: {
+      attendance: attendanceEnabled(),
+      attendanceMessage: attendanceEnabled() ? '' : ATTENDANCE_OFF_MESSAGE,
+    },
+  };
 }
 
 /* --------------------------------------------------------------- routing */
@@ -386,6 +409,7 @@ const routes = {
   },
 
   'POST /api/student/attendance': async (req, res) => {
+    if (!attendanceEnabled()) fail(ATTENDANCE_OFF_MESSAGE, 403);
     const user = await requireUser(req);
     if (user.role === 'admin') fail('Admin accounts do not mark attendance.', 400);
 

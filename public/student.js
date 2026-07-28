@@ -8,7 +8,11 @@ let GRACE_MINUTES = 15;       // fixed by the server; sent with the dashboard
 
 /* ------------------------------------------------------------ navigation */
 
+/** Whether daily marking is switched on. Set from the server on every load. */
+let ATTENDANCE_ON = true;
+
 function showView(name) {
+  if (name === 'mark' && !ATTENDANCE_ON) name = 'exams';
   $$('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
   $$('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === name)));
   if (name === 'report') { loadReport(); loadExamHistory(); }
@@ -483,9 +487,30 @@ async function refresh() {
   }
 
   $('#tabs').style.visibility = '';
+  applyFeatures(data.features);
   renderMark();
   renderProfile();
   return true;
+}
+
+/**
+ * Attendance marking can be paused by the teacher. When it is, the tab is
+ * removed rather than shown disabled — a tab you cannot use is just confusing.
+ * The server refuses the request too, so this is presentation, not security.
+ */
+function applyFeatures(features) {
+  ATTENDANCE_ON = !features || features.attendance !== false;
+
+  const tab = $('#tabs button[data-view="mark"]');
+  if (tab) tab.hidden = !ATTENDANCE_ON;
+
+  const notice = $('#pausedNotice');
+  if (notice) {
+    notice.hidden = ATTENDANCE_ON;
+    if (!ATTENDANCE_ON && features.attendanceMessage) {
+      notice.textContent = features.attendanceMessage;
+    }
+  }
 }
 
 (async function boot() {
@@ -494,7 +519,7 @@ async function refresh() {
 
   try {
     const ready = await refresh();
-    if (ready) showView('mark');
+    if (ready) showView(ATTENDANCE_ON ? 'mark' : 'exams');
   } catch (err) {
     toast(err.message, 'error');
   }
