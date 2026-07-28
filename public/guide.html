@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>User Guide — Learner's Byte</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="/logo-mark.svg" />
+<style>
+/* The figures below are built from the app's own stylesheet, so what you see
+   here is the real interface rather than a drawing of it. */
+
+.guide { max-width: 900px; margin: 0 auto; padding: 30px 22px 90px; }
+
+.guide h1 { font-size: 30px; margin-bottom: 8px; }
+.guide h2 { font-size: 21px; margin: 0 0 6px; }
+.guide h3 { font-size: 16px; margin: 26px 0 8px; }
+.guide p  { margin: 0 0 12px; color: var(--ink-2); line-height: 1.7; }
+.guide ul, .guide ol { margin: 0 0 14px; padding-left: 22px; color: var(--ink-2); line-height: 1.8; }
+.guide li { margin-bottom: 5px; }
+.guide strong { color: var(--ink); font-weight: 650; }
+
+.cover {
+  text-align: center; padding: 40px 20px 34px;
+  border-bottom: 2px solid var(--line-strong); margin-bottom: 30px;
+}
+.cover-logos { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 20px; }
+.cover-logos img { width: 62px; height: 62px; }
+.cover-logos .sep { width: 1px; height: 46px; background: var(--line-strong); }
+.cover .sub { font-size: 15px; color: var(--ink-muted); }
+
+.toc { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; margin-bottom: 30px; }
+.toc ol { margin: 0; }
+.toc a { text-decoration: none; }
+
+.part {
+  margin: 40px 0 22px; padding: 14px 18px;
+  background: var(--accent-soft); border-left: 4px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+}
+.part h2 { color: var(--ink); }
+.part p { margin: 4px 0 0; font-size: 13.5px; }
+
+.step { display: flex; gap: 14px; margin-bottom: 16px; }
+.step-n {
+  flex: none; width: 27px; height: 27px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-weight: 700; font-size: 13.5px;
+}
+.step-body { flex: 1; }
+.step-body p { margin: 0; }
+.step-body b { color: var(--ink); }
+
+/* A figure: a framed piece of the real interface. */
+.fig {
+  border: 1px solid var(--line-strong); border-radius: 12px;
+  overflow: hidden; margin: 14px 0 20px;
+  background: var(--surface); box-shadow: var(--shadow);
+}
+.fig-body { padding: 16px; background: var(--page); }
+.fig-cap {
+  padding: 9px 14px; font-size: 12.5px; color: var(--ink-muted);
+  background: var(--surface-2); border-top: 1px solid var(--line);
+}
+.fig-cap b { color: var(--ink-2); }
+
+.note {
+  border-left: 4px solid var(--late); background: var(--late-soft);
+  padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 14px 0 18px;
+}
+.note.stop { border-left-color: var(--absent); background: var(--absent-soft); }
+.note.good { border-left-color: var(--present); background: var(--present-soft); }
+.note p { margin: 0; color: var(--ink); font-size: 14px; }
+.note b { display: block; margin-bottom: 3px; }
+
+table.g { width: 100%; border-collapse: collapse; margin: 6px 0 18px; font-size: 14px; }
+table.g th, table.g td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.g th { background: var(--surface-2); font-weight: 650; font-size: 13px; }
+table.g td { color: var(--ink-2); }
+
+.kbd {
+  display: inline-block; padding: 1px 7px; border-radius: 5px;
+  background: var(--surface-3); border: 1px solid var(--line-strong);
+  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--ink);
+}
+
+.printbar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 22px; background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.printbar .spacer { margin-left: auto; }
+
+/* -------------------------------------------------------------- printing */
+@page { size: A4; margin: 14mm 12mm; }
+
+@media print {
+  .printbar { display: none; }
+  body { background: #fff; }
+  .guide { max-width: none; padding: 0; }
+  .part, .fig, .note, table.g { break-inside: avoid; page-break-inside: avoid; }
+  h3 { break-after: avoid; page-break-after: avoid; }
+  .part { break-before: page; page-break-before: page; }
+  .part:first-of-type { break-before: auto; page-break-before: auto; }
+  .fig { box-shadow: none; }
+  a { color: inherit; text-decoration: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="printbar">
+  <img src="/logo-mark.svg" alt="" style="width:30px;height:30px" />
+  <b>User Guide</b>
+  <span class="small muted">Learner's Byte</span>
+  <div class="spacer"></div>
+  <button class="btn" onclick="window.print()">Save as PDF / Print</button>
+</div>
+
+<div class="guide">
+
+  <!-- ================================================================ COVER -->
+  <div class="cover">
+    <div class="cover-logos">
+      <img src="/logo-mark.svg" alt="Learner's Byte" />
+      <span class="sep"></span>
+      <img src="/udayan-care.svg" alt="Udayan Care" />
+    </div>
+    <h1>Learner's Byte — User Guide</h1>
+    <p class="sub">Online attendance and examinations · In association with Udayan Care</p>
+  </div>
+
+  <div class="toc">
+    <b>What is in this guide</b>
+    <ol>
+      <li><a href="#start">Getting started — the two portals</a></li>
+      <li><a href="#student">For students — Attendance, Online Exam, My report, Profile</a></li>
+      <li><a href="#teacher">For teachers — Today, Batches, Students, Exams, Reports, Activity</a></li>
+      <li><a href="#rules">The rules, in one place</a></li>
+      <li><a href="#trouble">If something goes wrong</a></li>
+    </ol>
+  </div>
+
+  <!-- ========================================================= 1. GETTING STARTED -->
+  <div class="part" id="start">
+    <h2>1 · Getting started</h2>
+    <p>Who logs in where, and what each person can do.</p>
+  </div>
+
+  <p>There is <strong>one website</strong> and <strong>two portals</strong>. Which one you
+  see is decided by your account, not by the address you type — students always land in
+  the student portal, teachers in the teacher portal.</p>
+
+  <table class="g">
+    <thead><tr><th style="width:130px">Portal</th><th>Who</th><th>What they can do</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Student</b></td>
+        <td>Every learner</td>
+        <td>Mark their own attendance, sit exams, see their own report. They cannot
+            see anybody else's records.</td>
+      </tr>
+      <tr>
+        <td><b>Teacher</b></td>
+        <td>Staff</td>
+        <td>Everything: create batches and exams, edit or correct any record, and see
+            every student's attendance and marks.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Signing in</h3>
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body"><p>Open the website address your teacher gave you.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body"><p>A student signing in for the first time clicks
+      <b>Create account</b> and enters their name, email, phone number and a password.
+      The password must be <b>at least 8 characters and contain a letter and a number</b>.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body"><p>After that, always use <b>Log in</b> with the same email
+      and password.</p></div>
+  </div>
+
+  <div class="fig">
+    <div class="fig-body">
+      <div class="auth-card" style="margin:0 auto;max-width:400px">
+        <div class="auth-head">
+          <div class="logo"><img src="/logo-mark.svg" alt="" /></div>
+          <h1 style="font-size:21px">Learner's Byte</h1>
+          <p>Sign in to mark your attendance</p>
+        </div>
+        <div class="segmented" role="tablist">
+          <button role="tab" aria-selected="true">Log in</button>
+          <button role="tab" aria-selected="false">Create account</button>
+        </div>
+        <label class="field"><span>Email address</span>
+          <input type="text" value="you@example.com" readonly /></label>
+        <label class="field"><span>Password</span>
+          <input type="password" value="password" readonly /></label>
+        <button class="btn block">Log in</button>
+      </div>
+    </div>
+    <div class="fig-cap"><b>Figure 1.</b> The sign-in screen. Use the two buttons at the
+      top to switch between logging in and creating a new account.</div>
+  </div>
+
+  <div class="note">
+    <p><b>Forgotten your password?</b>
+      Click <b>Forgot password</b> on the sign-in screen and enter your email. A reset
+      link is produced. If you do not receive it, your teacher can see the pending
+      request in the teacher portal and pass the link to you. Reset links expire after
+      <b>60 minutes</b> and work only once.</p>
+  </div>
+
+  <!-- ================================================================ 2. STUDENT -->
+  <div class="part" id="student">
+    <h2>2 · The student portal</h2>
+    <p>Four tabs: Attendance · Online Exam · My report · Profile</p>
+  </div>
+
+  <div class="fig">
+    <div class="fig-body" style="padding:0">
+      <header class="appbar" style="position:static">
+        <div class="brand">
+          <span class="logo"><img src="/logo-mark.svg" alt="" /></span>
+          <div><b>Learner's Byte</b><span>Student portal</span></div>
+          <span class="brand-sep"></span>
+          <div class="partner">
+            <img src="/udayan-care.svg" alt="" />
+            <div><span>In association with</span><b>Udayan Care</b></div>
+          </div>
+        </div>
+        <nav class="navtabs" role="tablist">
+          <button role="tab" aria-selected="true">Attendance</button>
+          <button role="tab" aria-selected="false">Online Exam</button>
+          <button role="tab" aria-selected="false">My report</button>
+          <button role="tab" aria-selected="false">Profile</button>
+        </nav>
+      </header>
+    </div>
+    <div class="fig-cap"><b>Figure 2.</b> The student tabs, always along the top. The
+      ◐ button switches between light and dark; ⏻ logs out.</div>
+  </div>
+
+  <h3>Before anything else — choose your batch</h3>
+  <p>The very first time a student logs in, they must pick their <strong>batch</strong>.
+  A batch is the class group, and it carries the timetable: the start and end time and
+  which days of the week the class runs.</p>
+
+  <div class="note stop">
+    <p><b>This is a one-time choice.</b>
+      Once a batch is chosen it is locked, and only a teacher can change it. This is
+      deliberate — otherwise a student could switch to a later class time to avoid being
+      marked late.</p>
+  </div>
+
+  <h3>Tab 1 — Attendance</h3>
+  <p>One large button marks you present for today. Beside it is a calendar of the month
+  so you can see your record at a glance.</p>
+
+  <div class="fig">
+    <div class="fig-body">
+      <div class="card" style="margin:0">
+        <div class="mark-panel" style="text-align:center;padding:22px">
+          <p class="small muted" style="margin-bottom:10px">Tuesday, 28 July 2026 · Class 10:00 AM – 11:00 AM</p>
+          <button class="btn xl">I am present</button>
+          <p class="small muted" style="margin-top:12px">Mark now and you are PRESENT.
+            Late after 10:15 AM.</p>
+        </div>
+      </div>
+    </div>
+    <div class="fig-cap"><b>Figure 3.</b> The Attendance tab. The message under the button
+      always tells you what will be recorded if you press it now.</div>
+  </div>
+
+  <p><strong>What the button does at different times:</strong></p>
+  <table class="g">
+    <thead><tr><th style="width:190px">When you click</th><th>What is recorded</th></tr></thead>
+    <tbody>
+      <tr><td>More than 30 min early</td><td>Button is closed. It unlocks 30 minutes before class.</td></tr>
+      <tr><td>Up to 15 min after start</td><td><span class="pill present"><span class="ico">✓</span>Present</span></td></tr>
+      <tr><td>After that, before class ends</td><td><span class="pill late"><span class="ico">!</span>Late</span></td></tr>
+      <tr><td>After class has ended</td><td>Button is closed. The day counts as
+        <span class="pill absent"><span class="ico">✕</span>Absent</span></td></tr>
+      <tr><td>On a non-class day</td><td>Nothing. Days your batch does not run are never counted against you.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><b>You can only mark once a day.</b>
+      After marking, the button is replaced by what was recorded and at what time. If
+      something is wrong, ask your teacher — only they can change it.</p>
+  </div>
+
+  <p>In the calendar beside the button, each day is coloured by what happened, and
+  <strong>Saturdays and Sundays are shown as holidays</strong> in violet so they are never
+  confused with an absence.</p>
+
+  <h3>Tab 2 — Online Exam</h3>
+  <p>Every exam released to your batch appears here, newest first, with a label showing
+  its state.</p>
+
+  <div class="fig">
+    <div class="fig-body">
+      <div class="card" style="margin:0;padding:0">
+        <div class="exam-row" style="border-bottom:1px solid var(--line)">
+          <div class="exam-row-main">
+            <b>Unit Test 1 — Algebra</b>
+            <span class="small muted">28 July 2026 at 10:00 AM · 10 questions · 20 marks · 60s each</span>
+          </div>
+          <div class="exam-row-side">
+            <span class="pill present"><span class="ico">●</span>Open now</span>
+            <span class="chev">›</span>
+          </div>
+        </div>
+        <div class="exam-row" style="border-bottom:1px solid var(--line)">
+          <div class="exam-row-main">
+            <b>Unit Test 2 — Geometry</b>
+            <span class="small muted">02 August 2026 at 10:00 AM · 8 questions · 16 marks · 60s each</span>
+          </div>
+          <div class="exam-row-side">
+            <span class="pill pending"><span class="ico">○</span>Upcoming</span>
+            <span class="chev">›</span>
+          </div>
+        </div>
+        <div class="exam-row">
+          <div class="exam-row-main">
+            <b>Practice Test</b>
+            <span class="small muted">20 July 2026 at 10:00 AM · 5 questions · 10 marks</span>
+          </div>
+          <div class="exam-row-side">
+            <div class="score-chip good"><b>8/10</b><span>80%</span></div>
+            <span class="chev">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fig-cap"><b>Figure 4.</b> The exam list. A paper already sat shows the
+      score instead of a label.</div>
+  </div>
+
+  <table class="g">
+    <thead><tr><th style="width:170px">Label</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill pending"><span class="ico">○</span>Upcoming</span></td>
+          <td>Not open yet. Open it to see a live countdown to the start time.</td></tr>
+      <tr><td><span class="pill present"><span class="ico">●</span>Open now</span></td>
+          <td>You can start it.</td></tr>
+      <tr><td><span class="pill late"><span class="ico">!</span>In progress</span></td>
+          <td>You started but did not submit. Open it to carry on.</td></tr>
+      <tr><td><span class="pill present"><span class="ico">✓</span>Submitted</span></td>
+          <td>Done. The score is shown.</td></tr>
+      <tr><td><span class="pill absent"><span class="ico">✕</span>Missed</span></td>
+          <td>It closed and you never started. You may request a makeup — see below.</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Sitting a paper, step by step:</strong></p>
+  <div class="step"><div class="step-n">1</div><div class="step-body">
+    <p>Click the exam. You will see the number of questions, total marks, time per
+      question and the instructions.</p></div></div>
+  <div class="step"><div class="step-n">2</div><div class="step-body">
+    <p>The <b>Start exam</b> button is greyed out until the exact time your teacher set.
+      It switches on by itself — you do not need to refresh the page.</p></div></div>
+  <div class="step"><div class="step-n">3</div><div class="step-body">
+    <p>Questions appear <b>one at a time</b>. Use <b>← Previous</b> and <b>Next →</b>, or
+      the numbered dots, to move about.</p></div></div>
+  <div class="step"><div class="step-n">4</div><div class="step-body">
+    <p>Each question has its <b>own countdown</b>. It turns amber under 30 seconds and
+      red under 10. <b>When it reaches zero that question locks</b> and cannot be changed
+      — not even by going back to it.</p></div></div>
+  <div class="step"><div class="step-n">5</div><div class="step-body">
+    <p>On the last question, press <b>Submit exam</b>. Your score appears straight away,
+      and you can open the marked paper to see which answers were right.</p></div></div>
+
+  <div class="fig">
+    <div class="fig-body">
+      <div class="card" style="margin:0">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <span class="small muted">Question 3 of 10 · 2 marks</span>
+          <div style="margin-left:auto" class="timer low"><span id="x">00:24</span></div>
+        </div>
+        <div class="q-live">
+          <p class="q-live-text">Which planet is closest to the Sun?</p>
+          <div class="choices">
+            <label class="choice"><span class="key">A</span><span class="text">Venus</span></label>
+            <label class="choice chosen"><span class="key">B</span><span class="text">Mercury</span></label>
+            <label class="choice"><span class="key">C</span><span class="text">Earth</span></label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn ghost">← Previous</button>
+          <button class="btn">Next →</button>
+        </div>
+      </div>
+    </div>
+    <div class="fig-cap"><b>Figure 5.</b> Sitting a paper. The countdown at the top right
+      belongs to <i>this question only</i>.</div>
+  </div>
+
+  <div class="note stop">
+    <p><b>The timer is enforced by the server, not your browser.</b>
+      Changing the clock on your computer, or pausing the countdown, gains you nothing —
+      an answer that arrives after the deadline is refused and the answer you gave in
+      time is what stands.</p>
+  </div>
+
+  <h3>If you missed an exam</h3>
+  <p>A paper you never started, which has since closed, is labelled
+  <span class="pill absent"><span class="ico">✕</span>Missed</span>. Open it and you can
+  ask your teacher for a second chance.</p>
+  <ol>
+    <li>Click the missed paper.</li>
+    <li>Type <strong>why</strong> you missed it — this is required, and your teacher reads it.</li>
+    <li>Press <strong>Request to write</strong>.</li>
+    <li>The label becomes <span class="pill late"><span class="ico">⏳</span>Makeup requested</span>
+        while your teacher decides.</li>
+  </ol>
+
+  <div class="note">
+    <p><b>A makeup is a different paper.</b>
+      If your teacher agrees, they set a <b>new question paper</b> with a new time, given
+      only to the students who missed the original. You will not get the same questions
+      back. You can ask only once per exam.</p>
+  </div>
+
+  <h3>Tab 3 — My report</h3>
+  <p>Your own record, and nobody else's. It contains:</p>
+  <ul>
+    <li><strong>Attendance breakdown</strong> — present, late and absent as a ring chart.</li>
+    <li><strong>Running attendance</strong> — a line showing your percentage over time.</li>
+    <li><strong>Month by month</strong> — bars comparing each month.</li>
+    <li><strong>Exam results</strong> — every paper you have sat, with correct, wrong and
+        unanswered counts, and a <b>Review</b> button to reopen the marked paper.</li>
+    <li><strong>Day by day</strong> — the full list of class days and what was recorded.</li>
+  </ul>
+  <p>Use the date boxes, or the <span class="kbd">Last 7 days</span> /
+  <span class="kbd">Last 30 days</span> / <span class="kbd">Last 90 days</span> buttons, to
+  narrow the period. Every chart has a <b>Table</b> view beside it if you prefer numbers
+  to pictures.</p>
+
+  <h3>Tab 4 — Profile</h3>
+  <p>Your name, email and phone; your batch and its timetable; and <strong>Change
+  password</strong>. You cannot change your own batch here — ask a teacher.</p>
+
+  <!-- ================================================================ 3. TEACHER -->
+  <div class="part" id="teacher">
+    <h2>3 · The teacher portal</h2>
+    <p>Six tabs: Today · Batches · Students · Exams · Reports · Activity</p>
+  </div>
+
+  <div class="fig">
+    <div class="fig-body" style="padding:0">
+      <header class="appbar" style="position:static">
+        <div class="brand">
+          <span class="logo"><img src="/logo-mark.svg" alt="" /></span>
+          <div><b>Learner's Byte</b><span>Teacher portal</span></div>
+        </div>
+        <nav class="navtabs" role="tablist">
+          <button role="tab" aria-selected="true">Today</button>
+          <button role="tab" aria-selected="false">Batches</button>
+          <button role="tab" aria-selected="false">Students</button>
+          <button role="tab" aria-selected="false">Exams</button>
+          <button role="tab" aria-selected="false">Reports</button>
+          <button role="tab" aria-selected="false">Activity</button>
+        </nav>
+      </header>
+    </div>
+    <div class="fig-cap"><b>Figure 6.</b> The teacher tabs.</div>
+  </div>
+
+  <h3>Tab 1 — Today</h3>
+  <p>The roll call for today. Every student, their batch, their class time, and what has
+  been recorded so far. Use the search box to find someone by name, email or registration
+  number.</p>
+  <p>The <strong>Set status</strong> column lets you override any student's day — use it
+  when a student was in class but could not mark, or when you need to correct a mistake.
+  Your change replaces whatever was there.</p>
+
+  <h3>Tab 2 — Batches</h3>
+  <p>A batch is a class group and its timetable. <strong>Only you can create or change
+  one.</strong> Students merely pick which batch they are in.</p>
+  <div class="step"><div class="step-n">1</div><div class="step-body">
+    <p>Press <b>+ New batch</b>.</p></div></div>
+  <div class="step"><div class="step-n">2</div><div class="step-body">
+    <p>Give it a <b>name</b> and a <b>course</b>, set the <b>start and end time</b>, and
+      tick the <b>days of the week</b> it runs.</p></div></div>
+  <div class="step"><div class="step-n">3</div><div class="step-body">
+    <p>Save. Students will now see it when choosing their batch.</p></div></div>
+
+  <div class="note">
+    <p><b>Changing a batch time changes it for everyone in it,</b> including how their
+      past days were judged. Set it carefully at the start of a course. A batch you are
+      not running at the moment can be marked <b>inactive</b> instead of deleted, which
+      keeps its records intact.</p>
+  </div>
+
+  <h3>Tab 3 — Students</h3>
+  <p>Everyone on the system. Search by name, email, phone or registration number, and
+  filter by batch or role. From here you can:</p>
+  <ul>
+    <li><strong>Add</strong> a person directly, without waiting for them to sign up.</li>
+    <li><strong>Edit</strong> their details, or move them to a different batch.</li>
+    <li><strong>Deactivate</strong> someone who has left — this keeps their records but
+        stops them logging in.</li>
+    <li><strong>Export CSV</strong> to open the whole list in Excel.</li>
+  </ul>
+
+  <h3>Tab 4 — Exams</h3>
+  <p>Creating a paper takes three steps.</p>
+
+  <div class="fig">
+    <div class="fig-body">
+      <div class="steps">
+        <span class="step on"><b>1</b> Exam details</span>
+        <span class="step"><b>2</b> Question paper</span>
+        <span class="step"><b>3</b> Review &amp; save</span>
+      </div>
+    </div>
+    <div class="fig-cap"><b>Figure 7.</b> The three steps of creating an exam.</div>
+  </div>
+
+  <p><strong>Step 1 — Exam details.</strong> Choose the batch, give it a title, and set
+  the date, the time it opens, how many questions, the total marks, and
+  <strong>how many seconds each question is worth</strong> (minimum 5). You can also write
+  your own instructions; leave it blank and sensible ones are generated.</p>
+
+  <p>Then choose <strong>who the paper is for</strong>:</p>
+  <table class="g">
+    <thead><tr><th style="width:210px">Option</th><th>Use it for</th></tr></thead>
+    <tbody>
+      <tr><td><b>Everyone in the batch</b></td><td>A normal exam.</td></tr>
+      <tr><td><b>Selected students only</b></td><td>A makeup paper. Only the students you
+        tick will ever see it, so the questions cannot be passed on by classmates who
+        already sat the original.</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Step 2 — The question paper.</strong> Two ways:</p>
+  <table class="g">
+    <thead><tr><th style="width:210px">Method</th><th>How it works</th></tr></thead>
+    <tbody>
+      <tr><td><b>✎ Create paper manually</b></td>
+          <td>Add questions one by one. Each can be fill-in-the-blank or multiple choice.
+              For multiple choice, type the options and mark the correct letter. For
+              fill-in-the-blank, separate several acceptable answers with a
+              <span class="kbd">|</span> — for example
+              <span class="kbd">Mumbai|Bombay</span>.</td></tr>
+      <tr><td><b>⭱ Upload paper (PDF / Word)</b></td>
+          <td>Upload a paper that already contains the answers. The questions and the
+              answer key are pulled out automatically. <b>Always check the review screen
+              before saving</b> — it shows what was found and warns about anything it
+              could not read.</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Step 3 — Review and save.</strong> Check the questions, then <b>Publish</b>.
+  A paper stays a draft, invisible to students, until you publish it.</p>
+
+  <div class="note good">
+    <p><b>Correct answers never leave the server.</b>
+      The paper sent to a student's browser has the answer key stripped out, so it cannot
+      be found by inspecting the page. Marking happens on the server when the exam is
+      submitted.</p>
+  </div>
+
+  <h3>Seeing results and handling makeups</h3>
+  <p>Under <b>Exams</b>, each paper has a <b>Results</b> button showing every student's
+  score, the class average, highest and lowest, and who has not started. You can open any
+  student's marked paper.</p>
+  <p>Once a paper has closed, its results screen also shows how many students
+  <strong>missed</strong> it, with a button to <b>Set a makeup paper</b>. That takes you
+  to the exam wizard with the batch and timings already filled in, the audience set to
+  <b>Selected students only</b>, and everyone who missed already ticked. You write the new
+  questions and publish.</p>
+  <p>Students who ask for a makeup appear in the <strong>Makeup requests</strong> panel at
+  the top of the Exams tab, with a count of how many are waiting. Each row offers
+  <b>Set paper</b> or <b>Decline</b>. Declining asks for a reason, which the student sees.</p>
+
+  <h3>Tab 5 — Reports</h3>
+  <p>The whole class at once: overall breakdown, attendance by student, daily class
+  attendance, exam scores for every submission, and a student summary you can export to
+  CSV. Every chart has a <b>Table</b> view.</p>
+
+  <h3>Tab 6 — Activity</h3>
+  <p>A running log of every attendance action — who marked what, when, and from where.
+  Use it to check a disputed record.</p>
+
+  <!-- ================================================================== 4. RULES -->
+  <div class="part" id="rules">
+    <h2>4 · The rules, in one place</h2>
+    <p>The fixed behaviour behind attendance and exams.</p>
+  </div>
+
+  <table class="g">
+    <thead><tr><th style="width:250px">Rule</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Attendance button opens</td><td>30 minutes before the class start time</td></tr>
+      <tr><td>Grace period for Present</td><td><b>15 minutes</b> after the start time — fixed, and the same for every batch</td></tr>
+      <tr><td>Late</td><td>From the end of the grace period until the class end time</td></tr>
+      <tr><td>Absent</td><td>Any class day with no record, once the class has ended</td></tr>
+      <tr><td>Days counted</td><td>Only your batch's class days, and only from the day you joined</td></tr>
+      <tr><td>Marks per day</td><td>One. It cannot be changed by the student afterwards.</td></tr>
+      <tr><td>Exam start</td><td>At the exact time set. A student may still begin up to 30 minutes after the paper's full length has passed.</td></tr>
+      <tr><td>Per-question time</td><td>Set by the teacher, minimum 5 seconds. Enforced by the server.</td></tr>
+      <tr><td>Attempts per exam</td><td>One</td></tr>
+      <tr><td>Makeup requests</td><td>One per student per missed exam</td></tr>
+      <tr><td>Class clock</td><td>Asia/Calcutta — all times mean Indian local time, wherever the site is hosted</td></tr>
+      <tr><td>Password rules</td><td>At least 8 characters, including a letter and a number</td></tr>
+      <tr><td>Reset links</td><td>Valid 60 minutes, single use</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><b>Classes cannot run past midnight.</b>
+      A batch or exam window must start and end on the same calendar day. A class from
+      23:00 to 01:00 is not supported.</p>
+  </div>
+
+  <!-- =============================================================== 5. TROUBLE -->
+  <div class="part" id="trouble">
+    <h2>5 · If something goes wrong</h2>
+    <p>The common problems and what to do about them.</p>
+  </div>
+
+  <table class="g">
+    <thead><tr><th style="width:270px">What you see</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td>The attendance button is greyed out</td>
+          <td>It is either more than 30 minutes before class, after class has ended, or
+              today is not one of your batch's class days. The message under the button
+              says which.</td></tr>
+      <tr><td>"Choose your batch to start marking attendance"</td>
+          <td>You have not picked a batch yet. Do that first — attendance cannot be
+              recorded without a timetable.</td></tr>
+      <tr><td>Start exam is greyed out</td>
+          <td>The exam has not opened yet. The countdown on screen shows how long is
+              left, and the button switches on by itself.</td></tr>
+      <tr><td>"Time is up for this question"</td>
+          <td>That question's countdown finished. The answer you gave in time has been
+              kept. Move on to the next question.</td></tr>
+      <tr><td>A student says their attendance is wrong</td>
+          <td>Teacher: open <b>Today</b>, find them, and use <b>Set status</b>. Check the
+              <b>Activity</b> tab first to see what was actually recorded.</td></tr>
+      <tr><td>An uploaded paper came out wrong</td>
+          <td>The review screen shows warnings and the raw extracted text. Fix the
+              questions by hand there, or upload a cleaner file. Nothing is saved until
+              you publish.</td></tr>
+      <tr><td>The page says the server is not set up</td>
+          <td>Administrator: open <span class="kbd">/api/health</span> on the site. It
+              names exactly what is missing.</td></tr>
+    </tbody>
+  </table>
+
+  <p class="small muted" style="margin-top:36px;padding-top:18px;border-top:1px solid var(--line)">
+    Learner's Byte · In association with Udayan Care · This guide is available at
+    <b>/guide.html</b> on your site, and can be saved as a PDF from your browser at any time.
+  </p>
+
+</div>
+</body>
+</html>
