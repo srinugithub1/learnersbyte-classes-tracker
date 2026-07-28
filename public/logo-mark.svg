@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img"
+     aria-label="Learner&#39;s Byte">
+  <title>Learner's Byte</title>
+
+  <rect width="120" height="120" rx="26" fill="#0D1B24"/>
+
+  <!-- The bracket frame: alternating white and green segments on each edge. -->
+  <g>
+    <!-- top -->
+    <rect x="12" y="12" width="12" height="10" fill="#fff"/>
+    <rect x="28" y="12" width="52" height="10" fill="#fff"/>
+    <rect x="84" y="12" width="24" height="10" fill="#4CBB7F"/>
+    <!-- left -->
+    <rect x="12" y="26" width="10" height="58" fill="#4CBB7F"/>
+    <rect x="12" y="88" width="10" height="20" fill="#fff"/>
+    <!-- right -->
+    <rect x="98" y="26" width="10" height="82" fill="#fff"/>
+    <!-- bottom -->
+    <rect x="26" y="98" width="14" height="10" fill="#fff"/>
+    <rect x="44" y="98" width="50" height="10" fill="#4CBB7F"/>
+  </g>
+
+  <!-- The blocky B, chamfered on the right like the original. -->
+  <path fill="#fff" fill-rule="evenodd"
+        d="M40 34 H67 L79 46 V51 L73 57 L81 65 V75 L70 86 H40 Z
+           M50 44 H62 L66 48 V49 L62 53 H50 Z
+           M50 66 H63 L68 71 V73 L63 77 H50 Z"/>
+</svg>

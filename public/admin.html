@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Teacher Portal — Learner's Byte</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="/logo-mark.svg" />
+</head>
+<body>
+
+<header class="appbar">
+  <div class="brand">
+    <span class="logo"><img src="/logo-mark.svg" alt="" /></span>
+    <div>
+      <b>Learner's Byte</b>
+      <span>Teacher portal</span>
+    </div>
+  </div>
+
+  <nav class="navtabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="true"  data-view="dashboard">Today</button>
+    <button role="tab" aria-selected="false" data-view="batches">Batches</button>
+    <button role="tab" aria-selected="false" data-view="students">Students</button>
+    <button role="tab" aria-selected="false" data-view="exams">Exams</button>
+    <button role="tab" aria-selected="false" data-view="reports">Reports</button>
+    <button role="tab" aria-selected="false" data-view="log">Activity</button>
+  </nav>
+
+  <div class="userchip">
+    <div class="who"><b id="chipName">—</b><span>Administrator</span></div>
+    <div class="avatar" id="chipAvatar">—</div>
+    <button class="iconbtn" data-theme-toggle title="Switch light / dark">◐</button>
+    <button class="iconbtn" id="logoutBtn" title="Log out">⏻</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===================================================== TODAY / DASH -->
+  <section id="view-dashboard" class="view">
+    <div class="stats" id="dashStats"></div>
+
+    <div id="resetSlot"></div>
+
+    <div class="card">
+      <header>
+        <div><h2>Today's roll call</h2><p id="dashDate">—</p></div>
+        <div class="spacer"></div>
+        <label class="field" style="margin:0">
+          <input type="search" id="dashSearch" placeholder="Search name, email or reg. no." />
+        </label>
+      </header>
+      <div class="table-wrap">
+        <table id="todayTable">
+          <thead>
+            <tr>
+              <th>Student</th><th>Batch</th><th>Class time</th><th>Today</th>
+              <th>Marked at</th><th class="tnum">Attendance</th><th>Set status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= BATCHES -->
+  <section id="view-batches" class="view" hidden>
+    <div class="filterbar">
+      <div>
+        <h2 style="margin-bottom:4px">Batches</h2>
+        <p class="small muted">You set the class time and days here. Students only pick a batch —
+          they cannot change any of this.</p>
+      </div>
+      <button class="btn" id="addBatchBtn" style="margin-left:auto">+ New batch</button>
+    </div>
+
+    <div id="batchUnassigned"></div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table id="batchTable">
+          <thead>
+            <tr>
+              <th>Batch</th><th>Course</th><th>Class time</th><th>Class days</th>
+              <th class="tnum">Students</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <header><div><h2>How attendance is decided</h2></div></header>
+      <p class="small" style="color:var(--ink-2);line-height:1.7">
+        The button opens <strong>30 minutes before</strong> a batch's start time.
+        Marking within <strong>15 minutes</strong> of the start is
+        <span class="pill present"><span class="ico" aria-hidden="true">✓</span>Present</span>;
+        after that it is
+        <span class="pill late"><span class="ico" aria-hidden="true">!</span>Late</span>;
+        once the class end time passes the button closes and the day counts as
+        <span class="pill absent"><span class="ico" aria-hidden="true">✕</span>Absent</span>.
+        Only that batch's class days are counted, and only from the day each student joined.
+      </p>
+    </div>
+  </section>
+
+  <!-- ======================================================== STUDENTS -->
+  <section id="view-students" class="view" hidden>
+    <div class="filterbar">
+      <label class="field grow">
+        <span>Search</span>
+        <input type="search" id="studentSearch" placeholder="Name, email, phone or reg. no." />
+      </label>
+      <label class="field">
+        <span>Batch</span>
+        <select id="batchFilter"><option value="">All batches</option></select>
+      </label>
+      <label class="field">
+        <span>Role</span>
+        <select id="roleFilter">
+          <option value="">Everyone</option>
+          <option value="student">Students</option>
+          <option value="admin">Admins</option>
+        </select>
+      </label>
+      <button class="btn" id="addStudentBtn">+ Add person</button>
+      <a class="btn ghost" id="exportBtn" href="/api/admin/export.csv">Export CSV</a>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table id="studentTable">
+          <thead>
+            <tr>
+              <th>Reg. no.</th><th>Name</th><th>Contact</th><th>Batch</th>
+              <th>Class</th><th>Role</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================== EXAMS -->
+  <section id="view-exams" class="view" hidden>
+
+    <!-- ---- students asking to sit a paper they missed ---- -->
+    <div class="card hidden" id="makeupCard">
+      <header>
+        <div>
+          <h2>Makeup requests <span class="count-badge" id="makeupCount">0</span></h2>
+          <p>Students who missed a paper and are asking to write it.</p>
+        </div>
+      </header>
+      <div id="makeupList"></div>
+    </div>
+
+    <!-- ---- step 1: exam settings ---- -->
+    <div class="card" id="examStep1">
+      <header>
+        <div><h2>Create an exam</h2><p>Set it up, then add the questions.</p></div>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" id="examShowList">View existing exams</button>
+      </header>
+
+      <div class="steps" id="examSteps">
+        <span class="step on" data-step="1"><b>1</b> Exam details</span>
+        <span class="step" data-step="2"><b>2</b> Question paper</span>
+        <span class="step" data-step="3"><b>3</b> Review &amp; save</span>
+      </div>
+
+      <form id="examForm">
+        <div class="row">
+          <label class="field grow">
+            <span>Batch <i class="req">*</i></span>
+            <select name="batchId" id="examBatch" required></select>
+          </label>
+          <label class="field grow">
+            <span>Exam title</span>
+            <input type="text" name="title" placeholder="e.g. Unit Test 1 — Algebra" maxlength="120" />
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <label class="field">
+            <span>Exam date <i class="req">*</i></span>
+            <input type="date" name="examDate" id="examDate" required />
+          </label>
+          <label class="field">
+            <span>Exam time <i class="req">*</i></span>
+            <input type="time" name="startTime" value="10:00" required />
+          </label>
+          <label class="field">
+            <span>Total questions <i class="req">*</i></span>
+            <input type="number" name="totalQuestions" value="10" min="1" max="200" required />
+          </label>
+          <label class="field">
+            <span>Total marks <i class="req">*</i></span>
+            <input type="number" name="totalMarks" value="20" min="1" max="10000" step="0.5" required />
+          </label>
+          <label class="field">
+            <span>Seconds per question <i class="req">*</i></span>
+            <input type="number" name="secondsPerQuestion" value="60" min="5" max="3600" required />
+          </label>
+        </div>
+
+        <div class="field" style="margin-top:16px">
+          <span>Question style <i class="req">*</i></span>
+          <div class="chips" id="examMode">
+            <button type="button" data-mode="fill" aria-pressed="false">Fill in the blanks</button>
+            <button type="button" data-mode="mcq" aria-pressed="false">Multiple choice</button>
+            <button type="button" data-mode="both" aria-pressed="true">Both</button>
+          </div>
+        </div>
+
+        <label class="field" style="margin-top:16px">
+          <span>Instructions for students</span>
+          <textarea name="instructions" rows="3" maxlength="2000"
+            placeholder="Leave blank to use the standard instructions (question count, marks, per-question timer, one attempt)."></textarea>
+        </label>
+
+        <div class="field" style="margin-top:16px">
+          <span>Who is this paper for? <i class="req">*</i></span>
+          <div class="chips" id="examAudience">
+            <button type="button" data-audience="batch" aria-pressed="true">Everyone in the batch</button>
+            <button type="button" data-audience="selected" aria-pressed="false">Selected students only</button>
+          </div>
+          <p class="small muted" style="margin-top:6px">
+            Use <b>Selected students only</b> for a makeup paper. Nobody else in the
+            batch will see it, so the questions cannot be passed on.
+          </p>
+        </div>
+
+        <div class="field hidden" id="examStudentPick" style="margin-top:12px">
+          <span>Which students? <i class="req">*</i></span>
+          <div class="pick-toolbar">
+            <button type="button" class="btn ghost sm" id="pickMissed">Select everyone who missed a paper</button>
+            <button type="button" class="btn ghost sm" id="pickClear">Clear</button>
+            <span class="small muted" id="pickCount">none chosen</span>
+          </div>
+          <div class="pick-list" id="examStudentList"></div>
+        </div>
+
+        <p class="small muted" id="examSummaryHint"></p>
+        <button class="btn" type="submit">Continue →</button>
+      </form>
+    </div>
+
+    <!-- ---- step 2: how to build the paper ---- -->
+    <div class="card hidden" id="examStep2">
+      <header>
+        <div><h2>Question paper</h2><p id="examStep2Sub">—</p></div>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" id="examBack1">← Change details</button>
+      </header>
+
+      <div class="segmented" role="tablist" id="paperTabs">
+        <button role="tab" aria-selected="true"  data-paper="manual">✎ Create paper manually</button>
+        <button role="tab" aria-selected="false" data-paper="upload">⭱ Upload paper (PDF / Word)</button>
+      </div>
+
+      <!-- manual -->
+      <div id="paperManual">
+        <div class="alert info">
+          <span class="ico" aria-hidden="true">ℹ</span>
+          <span id="manualHint">Add each question and mark its correct answer.</span>
+        </div>
+        <div id="questionList"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn ghost" id="addFillBtn" type="button">+ Fill in the blank</button>
+          <button class="btn ghost" id="addMcqBtn" type="button">+ Multiple choice</button>
+          <div class="spacer" style="margin-left:auto"></div>
+          <button class="btn" id="saveQuestionsBtn" type="button">Save question paper</button>
+        </div>
+      </div>
+
+      <!-- upload -->
+      <div id="paperUpload" hidden>
+        <div class="alert info">
+          <span class="ico" aria-hidden="true">ℹ</span>
+          <span>The file must contain the <strong>answers</strong> as well. Number each
+          question <code>1.</code> <code>2.</code>, put choices on their own lines as
+          <code>A)</code> <code>B)</code>, and write <code>Answer: B</code> under each one.
+          Nothing is saved until you have checked what was read.</span>
+        </div>
+
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="examFile" accept=".pdf,.docx,.txt" hidden />
+          <span class="dz-icon" aria-hidden="true">⭱</span>
+          <b>Choose a file or drop it here</b>
+          <span class="small muted">PDF, Word .docx or .txt — up to 12 MB</span>
+        </label>
+
+        <div id="uploadResult"></div>
+      </div>
+    </div>
+
+    <!-- ---- existing exams ---- -->
+    <div class="card" id="examListCard">
+      <header>
+        <div><h2>Exams</h2><p>Every exam you have created</p></div>
+        <div class="spacer"></div>
+        <label class="field" style="margin:0">
+          <select id="examBatchFilter"><option value="">All batches</option></select>
+        </label>
+      </header>
+      <div class="table-wrap">
+        <table id="examTable">
+          <thead>
+            <tr>
+              <th>Exam</th><th>Batch</th><th>Date &amp; time</th><th>Style</th>
+              <th class="tnum">Questions</th><th class="tnum">Marks</th>
+              <th>Source</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= REPORTS -->
+  <section id="view-reports" class="view" hidden>
+    <div class="filterbar">
+      <label class="field"><span>From date</span><input type="date" id="fromDate" /></label>
+      <label class="field"><span>To date</span><input type="date" id="toDate" /></label>
+      <button class="btn" id="applyRange">Apply</button>
+      <button class="btn ghost" id="clearRange">All time</button>
+      <div class="chips" id="quickRange" style="margin-left:auto">
+        <button data-days="7">Last 7 days</button>
+        <button data-days="30">Last 30 days</button>
+        <button data-days="90">Last 90 days</button>
+      </div>
+    </div>
+
+    <div class="stats" id="reportStats"></div>
+
+    <div class="grid-2">
+      <div class="card chart-card">
+        <header>
+          <div><h2>Overall breakdown</h2><p>All students, all class days in range</p></div>
+          <div class="spacer"></div>
+          <div class="viewtoggle" role="tablist" data-toggle="donut">
+            <button role="tab" aria-selected="true" data-mode="chart">Chart</button>
+            <button role="tab" aria-selected="false" data-mode="table">Table</button>
+          </div>
+        </header>
+        <div class="chart-wrap" id="donutChart"></div>
+        <div id="donutTable" hidden></div>
+        <div class="legend" id="donutLegend"></div>
+      </div>
+
+      <div class="card chart-card">
+        <header>
+          <div><h2>Attendance by student</h2><p>Lowest first — who needs a nudge</p></div>
+          <div class="spacer"></div>
+          <div class="viewtoggle" role="tablist" data-toggle="bars">
+            <button role="tab" aria-selected="true" data-mode="chart">Chart</button>
+            <button role="tab" aria-selected="false" data-mode="table">Table</button>
+          </div>
+        </header>
+        <div class="chart-wrap" id="barsChart"></div>
+        <div id="barsTable" hidden></div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <header>
+        <div><h2>Daily class attendance</h2><p>Percentage of the class present or late, each day</p></div>
+        <div class="spacer"></div>
+        <div class="viewtoggle" role="tablist" data-toggle="trend">
+          <button role="tab" aria-selected="true" data-mode="chart">Chart</button>
+          <button role="tab" aria-selected="false" data-mode="table">Table</button>
+        </div>
+      </header>
+      <div class="chart-wrap" id="trendChart"></div>
+      <div id="trendTable" hidden></div>
+    </div>
+
+    <div class="card">
+      <header><div><h2>Exam scores</h2><p>Every paper submitted, newest first</p></div></header>
+      <div id="examScores"></div>
+    </div>
+
+    <div class="card">
+      <header>
+        <div><h2>Student summary</h2><p>Click a row to open the full record</p></div>
+        <div class="spacer"></div>
+        <a class="btn ghost sm" id="exportBtn2" href="/api/admin/export.csv">Export CSV</a>
+      </header>
+      <div class="table-wrap">
+        <table id="summaryTable">
+          <thead>
+            <tr>
+              <th>Student</th><th>Batch</th><th class="tnum">Present</th><th class="tnum">Late</th>
+              <th class="tnum">Absent</th><th class="tnum">Class days</th><th class="tnum">Attendance</th>
+              <th class="tnum">Streak</th><th>Last marked</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= LOG -->
+  <section id="view-log" class="view" hidden>
+    <div class="filterbar">
+      <label class="field"><span>From date</span><input type="date" id="logFrom" /></label>
+      <label class="field"><span>To date</span><input type="date" id="logTo" /></label>
+      <button class="btn" id="logApply">Apply</button>
+      <button class="btn ghost" id="logClear">All time</button>
+    </div>
+
+    <div class="card">
+      <header><div><h2>Attendance activity</h2><p>Every record, newest first</p></div></header>
+      <div class="table-wrap">
+        <table id="logTable">
+          <thead>
+            <tr><th>Date</th><th>Student</th><th>Batch</th><th>Status</th><th>Marked at</th><th>Source</th><th>IP</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="modalSlot"></div>
+<div id="toast" class="toast"></div>
+
+<script src="/common.js"></script>
+<script src="/charts.js"></script>
+<script src="/admin.js"></script>
+</body>
+</html>

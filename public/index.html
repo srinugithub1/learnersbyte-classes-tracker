@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Learner's Byte — Sign in</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="/logo-mark.svg" />
+</head>
+<body class="auth-page">
+
+<div class="auth-card">
+  <div class="auth-head">
+    <div class="logo"><img src="/logo-mark.svg" alt="" /></div>
+    <h1 id="headTitle">Learner's Byte</h1>
+    <p id="headSub">Sign in to mark your attendance</p>
+  </div>
+
+  <div class="segmented" role="tablist" id="modeTabs">
+    <button role="tab" aria-selected="true" data-mode="login">Log in</button>
+    <button role="tab" aria-selected="false" data-mode="signup">Create account</button>
+  </div>
+
+  <div id="alertSlot"></div>
+
+  <!-- ------------------------------------------------------------ LOGIN -->
+  <form id="loginForm" novalidate>
+    <label class="field">
+      <span>Email address</span>
+      <input type="email" name="email" autocomplete="username" placeholder="you@example.com" required />
+    </label>
+    <label class="field">
+      <span>Password</span>
+      <div class="pw-wrap">
+        <input type="password" name="password" autocomplete="current-password" placeholder="Your password" required />
+        <button type="button" data-reveal>Show</button>
+      </div>
+    </label>
+    <button class="btn block" type="submit">Log in</button>
+    <p class="auth-foot">
+      <button type="button" class="btn link" data-mode-go="forgot">Forgot your password?</button>
+    </p>
+  </form>
+
+  <!-- ----------------------------------------------------------- SIGNUP -->
+  <form id="signupForm" class="hidden" novalidate>
+    <label class="field">
+      <span>Full name <i class="req">*</i></span>
+      <input type="text" name="name" autocomplete="name" placeholder="e.g. Aarav Sharma" maxlength="80" required />
+    </label>
+    <label class="field">
+      <span>Email address <i class="req">*</i></span>
+      <input type="email" name="email" autocomplete="username" placeholder="you@example.com" required />
+    </label>
+    <label class="field">
+      <span>Phone number <i class="req">*</i></span>
+      <input type="tel" name="phone" autocomplete="tel" placeholder="10-digit mobile number" maxlength="20" required />
+    </label>
+    <label class="field">
+      <span>Password <i class="req">*</i></span>
+      <div class="pw-wrap">
+        <input type="password" name="password" autocomplete="new-password" placeholder="At least 8 characters" required />
+        <button type="button" data-reveal>Show</button>
+      </div>
+    </label>
+    <p class="pw-hint">Use 8 or more characters with at least one letter and one number.</p>
+    <label class="field">
+      <span>Confirm password <i class="req">*</i></span>
+      <input type="password" name="confirmPassword" autocomplete="new-password" placeholder="Type it again" required />
+    </label>
+    <button class="btn block" type="submit">Create my account</button>
+    <p class="auth-foot">You will set your batch, course and class time after logging in.</p>
+  </form>
+
+  <!-- ----------------------------------------------------------- FORGOT -->
+  <form id="forgotForm" class="hidden" novalidate>
+    <p class="alert info">
+      <span class="ico" aria-hidden="true">ℹ</span>
+      <span>Enter your email and a reset link will be created. Your teacher can see
+      pending requests in the Teacher portal and will pass the link to you.</span>
+    </p>
+    <label class="field">
+      <span>Email address</span>
+      <input type="email" name="email" autocomplete="username" placeholder="you@example.com" required />
+    </label>
+    <button class="btn block" type="submit">Create reset link</button>
+    <p class="auth-foot">
+      <button type="button" class="btn link" data-mode-go="login">Back to log in</button>
+    </p>
+  </form>
+</div>
+
+<script src="/common.js"></script>
+<script>
+(async function () {
+  // Already signed in? Go straight to the right portal.
+  const existing = await loadMe();
+  if (existing) { location.replace(routeFor(existing)); return; }
+
+  const forms = {
+    login: $('#loginForm'),
+    signup: $('#signupForm'),
+    forgot: $('#forgotForm'),
+  };
+  const heads = {
+    login:  ["Learner's Byte", 'Sign in to mark your attendance'],
+    signup: ['Create your account', 'One minute, then you are set for the term'],
+    forgot: ['Reset your password', 'We will create a secure reset link'],
+  };
+
+  function setMode(mode) {
+    for (const [key, form] of Object.entries(forms)) form.classList.toggle('hidden', key !== mode);
+    $$('#modeTabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.mode === mode)));
+    $('#modeTabs').classList.toggle('hidden', mode === 'forgot');
+    $('#headTitle').textContent = heads[mode][0];
+    $('#headSub').textContent = heads[mode][1];
+    $('#alertSlot').innerHTML = '';
+    const first = forms[mode].querySelector('input');
+    if (first) first.focus();
+  }
+
+  $$('#modeTabs button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $$('[data-mode-go]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.modeGo)));
+
+  $$('[data-reveal]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = btn.previousElementSibling;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.textContent = showing ? 'Show' : 'Hide';
+    });
+  });
+
+  function showAlert(kind, html) {
+    const icon = kind === 'error' ? '⚠' : kind === 'success' ? '✓' : 'ℹ';
+    $('#alertSlot').innerHTML =
+      `<div class="alert ${kind}"><span class="ico" aria-hidden="true">${icon}</span><span>${html}</span></div>`;
+  }
+
+  const values = (form) =>
+    Object.fromEntries(new FormData(form).entries());
+
+  async function submit(form, handler) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Please wait…';
+      $('#alertSlot').innerHTML = '';
+      try {
+        await handler(values(form), form);
+      } catch (err) {
+        showAlert('error', esc(err.message));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
+  }
+
+  submit(forms.login, async (data) => {
+    const { user } = await api('/api/auth/login', { method: 'POST', body: data });
+    location.href = routeFor(user);
+  });
+
+  submit(forms.signup, async (data) => {
+    if (data.password !== data.confirmPassword) throw new Error('The two passwords do not match.');
+    const { user } = await api('/api/auth/signup', { method: 'POST', body: data });
+    location.href = routeFor(user);
+  });
+
+  submit(forms.forgot, async (data, form) => {
+    const res = await api('/api/auth/forgot', { method: 'POST', body: data });
+    let html = esc(res.message);
+    if (res.resetUrl) {
+      html += `<br><br><strong>Your reset link:</strong><br>
+        <a href="${esc(res.resetUrl)}">${esc(res.resetUrl)}</a>`;
+    }
+    showAlert('success', html);
+    form.reset();
+  });
+
+  setMode('login');
+})();
+</script>
+</body>
+</html>

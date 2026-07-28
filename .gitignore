@@ -1,0 +1,26 @@
+# Secrets — .env holds the Supabase service_role key, which bypasses Row Level
+# Security. It must never be committed. Share .env.example instead.
+.env
+.env.local
+.env.*.local
+
+# Dependencies (this project has none, but keep the guard)
+node_modules/
+
+# Local scratch data from an earlier file-based prototype
+data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Per-machine editor and tool settings
+.claude/settings.local.json
+.vscode/
+.idea/
+
+# OS noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

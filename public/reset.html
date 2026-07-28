@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Learner's Byte — Set a new password</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="/logo-mark.svg" />
+</head>
+<body class="auth-page">
+
+<div class="auth-card">
+  <div class="auth-head">
+    <div class="logo"><img src="/logo-mark.svg" alt="" /></div>
+    <h1>Set a new password</h1>
+    <p>Choose something you will remember.</p>
+  </div>
+
+  <div id="alertSlot"></div>
+
+  <form id="resetForm" novalidate>
+    <label class="field">
+      <span>New password</span>
+      <div class="pw-wrap">
+        <input type="password" name="password" autocomplete="new-password" placeholder="At least 8 characters" required />
+        <button type="button" data-reveal>Show</button>
+      </div>
+    </label>
+    <p class="pw-hint">Use 8 or more characters with at least one letter and one number.</p>
+    <label class="field">
+      <span>Confirm new password</span>
+      <input type="password" name="confirmPassword" autocomplete="new-password" placeholder="Type it again" required />
+    </label>
+    <button class="btn block" type="submit">Save new password</button>
+  </form>
+
+  <p class="auth-foot"><a href="/">Back to log in</a></p>
+</div>
+
+<script src="/common.js"></script>
+<script>
+(function () {
+  const token = new URLSearchParams(location.search).get('token') || '';
+  const form = $('#resetForm');
+
+  function showAlert(kind, html) {
+    const icon = kind === 'error' ? '⚠' : kind === 'success' ? '✓' : 'ℹ';
+    $('#alertSlot').innerHTML =
+      `<div class="alert ${kind}"><span class="ico" aria-hidden="true">${icon}</span><span>${html}</span></div>`;
+  }
+
+  if (!token) {
+    showAlert('error', 'This link is missing its reset code. Please request a new link.');
+    form.classList.add('hidden');
+  }
+
+  $$('[data-reveal]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = btn.previousElementSibling;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.textContent = showing ? 'Show' : 'Hide';
+    });
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/reset', { method: 'POST', body: { ...data, token } });
+      showAlert('success', 'Password updated. Taking you to the login page…');
+      form.classList.add('hidden');
+      setTimeout(() => { location.href = '/'; }, 1800);
+    } catch (err) {
+      showAlert('error', esc(err.message));
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

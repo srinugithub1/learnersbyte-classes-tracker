@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Attendance — Learner's Byte</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="/logo-mark.svg" />
+</head>
+<body>
+
+<header class="appbar">
+  <div class="brand">
+    <span class="logo"><img src="/logo-mark.svg" alt="" /></span>
+    <div>
+      <b>Learner's Byte</b>
+      <span>Student portal</span>
+    </div>
+  </div>
+
+  <nav class="navtabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="true"  data-view="mark">Attendance</button>
+    <button role="tab" aria-selected="false" data-view="exams">Online Exam</button>
+    <button role="tab" aria-selected="false" data-view="report">My report</button>
+    <button role="tab" aria-selected="false" data-view="profile">Profile</button>
+  </nav>
+
+  <div class="userchip">
+    <div class="who"><b id="chipName">—</b><span id="chipMeta">—</span></div>
+    <div class="avatar" id="chipAvatar">—</div>
+    <button class="iconbtn" data-theme-toggle title="Switch light / dark">◐</button>
+    <button class="iconbtn" id="logoutBtn" title="Log out">⏻</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ================================================= SETUP (first time) -->
+  <section id="view-setup" class="view" hidden>
+    <div class="card">
+      <header>
+        <div>
+          <h2>Choose your batch</h2>
+          <p>Pick the batch you attend. Your course, class time and class days come with it.</p>
+        </div>
+      </header>
+
+      <div class="alert info">
+        <span class="ico" aria-hidden="true">ℹ</span>
+        <span>Marking within <strong>15 minutes</strong> of the class start counts as
+        <strong>Present</strong>. After that it is <strong>Late</strong>, and once the
+        class ends the day is <strong>Absent</strong>.</span>
+      </div>
+
+      <div id="batchChoices" class="batch-grid"></div>
+
+      <button class="btn" id="joinBatchBtn" disabled>Join this batch</button>
+      <p class="small muted" style="margin-top:12px">
+        You choose your batch once. If you are in the wrong one, your teacher can move you.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========================================================== MARK TAB -->
+  <section id="view-mark" class="view" hidden>
+    <div class="mark-layout">
+
+      <!-- left: today -->
+      <div class="mark-col">
+        <div class="card mark-panel">
+          <div class="avatar lg" id="markAvatar">—</div>
+          <h2 id="markGreeting">Hello</h2>
+          <p class="when" id="markWhen">—</p>
+
+          <div id="markAction"></div>
+
+          <div class="timeline" id="markTimeline" aria-hidden="true">
+            <div class="seg" data-seg="present"></div>
+            <div class="seg" data-seg="late"></div>
+            <div class="seg" data-seg="over"></div>
+          </div>
+          <div class="timeline-labels" id="markTimelineLabels"></div>
+
+          <p class="note" id="markNote"></p>
+        </div>
+
+        <div class="stats compact" id="markStats"></div>
+      </div>
+
+      <!-- right: month at a glance -->
+      <div class="card cal-card">
+        <div class="cal-head">
+          <div>
+            <h2>This month</h2>
+            <p class="small muted" style="margin-top:2px">Hover a day for details</p>
+          </div>
+          <div class="spacer"></div>
+          <button class="iconbtn" id="calPrev" title="Previous month" aria-label="Previous month">‹</button>
+          <b id="calLabel">—</b>
+          <button class="iconbtn" id="calNext" title="Next month" aria-label="Next month">›</button>
+        </div>
+        <div class="cal" id="calendar"></div>
+        <div class="legend cal-legend" id="calLegend"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================= EXAM TAB -->
+  <section id="view-exams" class="view" hidden>
+
+    <!-- list of papers -->
+    <div id="examListWrap">
+      <div class="card">
+        <header>
+          <div><h2>Online exams</h2><p>Papers released to your batch</p></div>
+        </header>
+        <div id="examList"></div>
+      </div>
+    </div>
+
+    <!-- one paper: instructions + start -->
+    <div id="examBrief" class="card hidden">
+      <header>
+        <div><h2 id="briefTitle">—</h2><p id="briefMeta">—</p></div>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" id="briefBack">← All exams</button>
+      </header>
+
+      <div class="brief-grid" id="briefFacts"></div>
+
+      <h3 style="margin:20px 0 8px">Instructions</h3>
+      <div class="instructions" id="briefInstructions"></div>
+
+      <div id="briefGate"></div>
+    </div>
+
+    <!-- the exam itself -->
+    <div id="examRunner" class="hidden">
+      <div class="card exam-bar">
+        <div>
+          <b id="runnerTitle">—</b>
+          <span class="small muted" id="runnerProgress">—</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="timer" id="questionTimer">
+          <span class="timer-label">Time left</span>
+          <b id="timerValue">--:--</b>
+        </div>
+      </div>
+
+      <div class="card" id="questionCard"></div>
+
+      <div class="card exam-nav">
+        <button class="btn ghost" id="prevQuestion">← Previous</button>
+        <div class="dots" id="questionDots"></div>
+        <button class="btn" id="nextQuestion">Next →</button>
+        <button class="btn" id="submitExam" hidden>Submit exam</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== REPORT TAB -->
+  <section id="view-report" class="view" hidden>
+    <div class="filterbar">
+      <label class="field"><span>From date</span><input type="date" id="fromDate" /></label>
+      <label class="field"><span>To date</span><input type="date" id="toDate" /></label>
+      <button class="btn" id="applyRange">Apply</button>
+      <button class="btn ghost" id="clearRange">All time</button>
+      <div class="spacer" style="margin-left:auto"></div>
+      <div class="chips" id="quickRange">
+        <button data-days="7">Last 7 days</button>
+        <button data-days="30">Last 30 days</button>
+        <button data-days="90">Last 90 days</button>
+      </div>
+    </div>
+
+    <div class="stats" id="reportStats"></div>
+
+    <div class="grid-2">
+      <div class="card chart-card">
+        <header>
+          <div><h2>Attendance breakdown</h2><p>Share of your class days</p></div>
+          <div class="spacer"></div>
+          <div class="viewtoggle" role="tablist" data-toggle="donut">
+            <button role="tab" aria-selected="true" data-mode="chart">Chart</button>
+            <button role="tab" aria-selected="false" data-mode="table">Table</button>
+          </div>
+        </header>
+        <div class="chart-wrap" id="donutChart"></div>
+        <div id="donutTable" hidden></div>
+        <div class="legend" id="donutLegend"></div>
+      </div>
+
+      <div class="card chart-card">
+        <header>
+          <div><h2>Month by month</h2><p>Class days split by status</p></div>
+          <div class="spacer"></div>
+          <div class="viewtoggle" role="tablist" data-toggle="monthly">
+            <button role="tab" aria-selected="true" data-mode="chart">Chart</button>
+            <button role="tab" aria-selected="false" data-mode="table">Table</button>
+          </div>
+        </header>
+        <div class="chart-wrap" id="monthlyChart"></div>
+        <div id="monthlyTable" hidden></div>
+        <div class="legend" id="monthlyLegend"></div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <header>
+        <div><h2>Running attendance</h2><p>Your cumulative percentage after each class day</p></div>
+        <div class="spacer"></div>
+        <div class="viewtoggle" role="tablist" data-toggle="trend">
+          <button role="tab" aria-selected="true" data-mode="chart">Chart</button>
+          <button role="tab" aria-selected="false" data-mode="table">Table</button>
+        </div>
+      </header>
+      <div class="chart-wrap" id="trendChart"></div>
+      <div id="trendTable" hidden></div>
+    </div>
+
+    <div class="card">
+      <header><div><h2>Exam results</h2><p>Every exam you have submitted</p></div></header>
+      <div id="examResults"></div>
+    </div>
+
+    <div class="card">
+      <header><div><h2>Day by day</h2><p>Newest first</p></div></header>
+      <div class="table-wrap">
+        <table id="dailyTable">
+          <thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Marked at</th><th>Recorded by</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= PROFILE TAB -->
+  <section id="view-profile" class="view" hidden>
+    <div class="grid-2">
+      <div class="card">
+        <header><div><h2>My details</h2><p>Keep these up to date</p></div></header>
+        <form id="contactForm">
+          <label class="field">
+            <span>Full name</span>
+            <input type="text" name="name" maxlength="80" required />
+          </label>
+          <label class="field">
+            <span>Phone number</span>
+            <input type="tel" name="phone" maxlength="20" required />
+          </label>
+          <label class="field">
+            <span>Email address</span>
+            <input type="email" id="profileEmail" disabled />
+          </label>
+          <p class="small muted" style="margin:-8px 0 14px">
+            Your email is your login. Ask your teacher if it needs changing.
+          </p>
+          <button class="btn" type="submit">Save details</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <header><div><h2>My batch</h2><p>Set by your teacher</p></div></header>
+        <div id="classSummary"></div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:520px">
+      <header><div><h2>Change password</h2><p>You will stay logged in on this device</p></div></header>
+      <form id="passwordForm">
+        <label class="field">
+          <span>Current password</span>
+          <input type="password" name="currentPassword" autocomplete="current-password" required />
+        </label>
+        <label class="field">
+          <span>New password</span>
+          <input type="password" name="newPassword" autocomplete="new-password" required />
+        </label>
+        <p class="pw-hint">Use 8 or more characters with at least one letter and one number.</p>
+        <label class="field">
+          <span>Confirm new password</span>
+          <input type="password" name="confirmPassword" autocomplete="new-password" required />
+        </label>
+        <button class="btn" type="submit">Change password</button>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="/common.js"></script>
+<script src="/charts.js"></script>
+<script src="/exam.js"></script>
+<script src="/student.js"></script>
+</body>
+</html>
