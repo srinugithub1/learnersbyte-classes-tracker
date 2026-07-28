@@ -1,0 +1,12 @@
+{
+  "name": "learnersbyte-classes-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Learner's Byte — online attendance and exam portal. No runtime dependencies.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/logic.test.js && node test/parse.test.js",
+    "test:all": "node test/logic.test.js && node test/parse.test.js && node test/e2e.test.js && node test/exam.test.js && node test/attempt.test.js && node test/makeup.test.js"
+  }
+}

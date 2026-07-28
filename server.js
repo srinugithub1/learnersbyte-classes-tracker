@@ -1375,7 +1375,12 @@ function serveStatic(req, res, pathname) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+/**
+ * Handles one request. Kept separate from the listener below so a serverless
+ * host (Vercel) can call it directly — there, `public/` is served by the CDN
+ * and this only ever sees /api/* paths.
+ */
+async function requestListener(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const handler = routes[`${req.method} ${url.pathname}`];
 
@@ -1392,7 +1397,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/')) return send(res, 404, { error: 'Unknown endpoint' });
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed' });
   serveStatic(req, res, url.pathname);
-});
+}
+
+const server = http.createServer(requestListener);
 
 /* ------------------------------------------------------------------ boot */
 
@@ -1422,7 +1429,41 @@ async function ensureAdmin() {
   return { email, promoted: false };
 }
 
-(async function boot() {
+/**
+ * Every class time, grace period and exam window is worked out on the server's
+ * own clock. A host that runs in UTC — which is the default on Vercel, Render
+ * and every other cloud — would put an Indian 10:00 class at 15:30 and mark
+ * half the students absent, silently and plausibly.
+ *
+ * So this refuses to run in the wrong timezone rather than being quietly wrong.
+ * Set TZ=Asia/Calcutta in the host's environment variables.
+ */
+const EXPECTED_TZ = process.env.APP_TIMEZONE || 'Asia/Calcutta';
+
+function checkTimezone() {
+  const actual = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (actual === EXPECTED_TZ) return null;
+
+  // Same wall clock under a different name (Asia/Kolkata vs Asia/Calcutta) is fine.
+  const sameOffset = new Date().toLocaleString('en-GB', { timeZone: actual })
+    === new Date().toLocaleString('en-GB', { timeZone: EXPECTED_TZ });
+  if (sameOffset) return null;
+
+  return `This server is running in "${actual}" but class times assume "${EXPECTED_TZ}".\n` +
+    `    Attendance and exam times would be wrong.\n` +
+    `    Set the environment variable  TZ=${EXPECTED_TZ}  and restart.\n` +
+    '    (On Vercel: Project -> Settings -> Environment Variables.)';
+}
+
+async function boot() {
+  const tzProblem = checkTimezone();
+  if (tzProblem) {
+    console.error('\n  x Cannot start — wrong timezone.\n');
+    console.error(`    ${tzProblem}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   try {
     await store.healthCheck();
   } catch (err) {
@@ -1451,4 +1492,22 @@ async function ensureAdmin() {
     console.log(`  Timezone    : ${Intl.DateTimeFormat().resolvedOptions().timeZone} — class times use this clock`);
     console.log('');
   });
-})();
+}
+
+/* Only listen when started directly (`node server.js`). When a serverless host
+   imports this file it wants the handler, not a socket. */
+if (require.main === module) boot();
+
+/* One-time setup on a serverless instance: make sure an admin exists. The
+   promise is cached, so this costs one query per cold start, not per request. */
+let readyPromise = null;
+const ensureReady = () => {
+  if (!readyPromise) {
+    readyPromise = ensureAdmin().catch((err) => {
+      console.error('  ! Could not create the admin account:', err.message);
+    });
+  }
+  return readyPromise;
+};
+
+module.exports = { requestListener, ensureReady, checkTimezone, server };
