@@ -1578,4 +1578,39 @@ const ensureReady = () => {
   return readyPromise;
 };
 
-module.exports = { requestListener, ensureReady, checkTimezone, server };
+/**
+ * The module's export is the request handler itself.
+ *
+ * Vercel's Node preset treats server.js as the root entrypoint: it IMPORTS this
+ * file and calls whatever it exports as `(req, res)`. Exporting an object made
+ * it crash on every request — and because the file was imported rather than
+ * run, boot() never fired either, so nothing was listening to fall back on.
+ *
+ * Exporting a function covers both worlds: a host calls it directly, while
+ * `node server.js` still binds a port through boot() above. The named pieces
+ * hang off it for api/[...path].js and the tests.
+ */
+async function handler(req, res) {
+  try {
+    const tzProblem = checkTimezone();
+    if (tzProblem) {
+      STARTUP_PROBLEM = tzProblem;
+    } else {
+      await ensureReady();
+    }
+    return await requestListener(req, res);
+  } catch (err) {
+    if (res.headersSent) return undefined;
+    console.error('Unhandled error:', err);
+    return send(res, err.status || 500, { error: err.message || 'Something went wrong.' });
+  }
+}
+
+module.exports = handler;
+module.exports.handler = handler;
+module.exports.requestListener = requestListener;
+module.exports.ensureReady = ensureReady;
+module.exports.checkTimezone = checkTimezone;
+module.exports.boot = boot;
+module.exports.server = server;
+module.exports.default = handler;

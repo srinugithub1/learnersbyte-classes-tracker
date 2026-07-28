@@ -1,16 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/[...path].js": {
+    "server.js": {
       "maxDuration": 30,
       "includeFiles": "public/**"
     }
   },
-  "rewrites": [
-    { "source": "/student", "destination": "/student.html" },
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/reset", "destination": "/reset.html" }
-  ],
   "headers": [
     {
       "source": "/(.*)",
