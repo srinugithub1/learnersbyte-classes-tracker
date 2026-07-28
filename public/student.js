@@ -513,12 +513,18 @@ function applyFeatures(features) {
     }
   }
 
-  if (ATTENDANCE_ON) return;
-
-  // Take the tab out of the page rather than setting hidden on it. The
-  // stylesheet gives .navtabs button an explicit `display: inline-flex`, which
-  // beats the browser's built-in [hidden] rule — so hiding it left it visible.
   const tab = $('#tabs button[data-view="mark"]');
+
+  if (ATTENDANCE_ON) {
+    // The markup ships the tab hidden, so it has to be switched on here. Doing
+    // it this way round means a stale or failed script leaves the tab absent
+    // rather than leaving a paused feature on show.
+    if (tab) tab.hidden = false;
+    return;
+  }
+
+  // Take it out of the page rather than just hiding it. .navtabs button carries
+  // an explicit `display: inline-flex`, which beats the browser's [hidden] rule.
   if (tab) tab.remove();
 
   const markView = $('#view-mark');

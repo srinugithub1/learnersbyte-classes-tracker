@@ -29,7 +29,9 @@
   </div>
 
   <nav class="navtabs" role="tablist" id="tabs">
-    <button role="tab" aria-selected="true"  data-view="mark">Attendance</button>
+    <!-- Starts hidden and is revealed by student.js only when marking is
+         enabled, so a cached script can never leave it on screen. -->
+    <button role="tab" aria-selected="false" data-view="mark" hidden>Attendance</button>
     <button role="tab" aria-selected="false" data-view="exams">Online Exam</button>
     <button role="tab" aria-selected="false" data-view="report">My report</button>
     <button role="tab" aria-selected="false" data-view="profile">Profile</button>
@@ -308,9 +310,9 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="/common.js"></script>
-<script src="/charts.js"></script>
-<script src="/exam.js"></script>
-<script src="/student.js"></script>
+<script src="/common.js?v=3"></script>
+<script src="/charts.js?v=3"></script>
+<script src="/exam.js?v=3"></script>
+<script src="/student.js?v=3"></script>
 </body>
 </html>
