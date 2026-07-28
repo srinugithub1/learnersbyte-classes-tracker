@@ -15,9 +15,12 @@
  * only from the day the student joined. Non-class days and dates before
  * sign-up are never counted against anyone.
  *
- * All times are the SERVER's local timezone. Run the server in the same
- * timezone as your classes.
+ * All times are wall-clock times in the school's timezone (APP_TIMEZONE, see
+ * zone.js). The server's own timezone is never used, so this behaves the same
+ * on a laptop in India and on a host running in UTC.
  */
+
+const zone = require('./zone');
 
 /** Fixed for every batch. Change this one number to change it everywhere. */
 const GRACE_MINUTES = 15;
@@ -26,11 +29,8 @@ const EARLY_WINDOW_MINUTES = 30;   // how long before class the button unlocks
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** Local YYYY-MM-DD (never UTC — toISOString would shift the date). */
-function localDate(d = new Date()) {
-  const off = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - off).toISOString().slice(0, 10);
-}
+/** "YYYY-MM-DD" on the school's clock. */
+const localDate = (d = new Date()) => zone.dateKey(d);
 
 /** Minutes since midnight for "HH:MM". */
 function toMinutes(hhmm) {
@@ -59,7 +59,7 @@ function formatTime(hhmm) {
 const scheduleOf = (user) => (user && user.batch ? user.batch : null);
 
 const isClassDay = (batch, date) =>
-  Boolean(batch) && (batch.classDays || []).includes(new Date(`${date}T00:00:00`).getDay());
+  Boolean(batch) && (batch.classDays || []).includes(zone.weekdayOf(date));
 
 /**
  * Where the student stands right now for today's class.
@@ -91,7 +91,7 @@ function currentWindow(user, now = new Date()) {
       message: `No class today. ${batch.name} runs on ${days || 'no days yet'}.` };
   }
 
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = zone.minutesOfDay(now);
   const opensAt = start - EARLY_WINDOW_MINUTES;
 
   if (nowMins < opensAt) {
@@ -120,13 +120,12 @@ function expectedDates(user, from, to) {
   const end = to || localDate();
   const out = [];
 
-  const cursor = new Date(`${start}T00:00:00`);
-  const last = new Date(`${end}T00:00:00`);
+  // Walk the calendar as date strings — no Date-in-local-timezone anywhere.
+  let cursor = start;
   let guard = 0;
-  while (cursor <= last && guard++ < 4000) {
-    const date = localDate(cursor);
-    if (isClassDay(batch, date)) out.push(date);
-    cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= end && guard++ < 4000) {
+    if (isClassDay(batch, cursor)) out.push(cursor);
+    cursor = zone.addDays(cursor, 1);
   }
   return out;
 }

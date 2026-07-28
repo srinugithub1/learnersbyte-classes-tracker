@@ -9,6 +9,7 @@ process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key
 
 const auth = require('../auth');
 const sched = require('../schedule');
+const grading = require('../grading');
 
 let pass = 0;
 let fail = 0;
@@ -130,10 +131,53 @@ const monthly = sched.buildReport(student, marks, { from: '2026-07-01', to: '202
 ok('one month bucket', monthly.length === 1);
 ok('month bucket totals match', monthly[0].total === 3 && monthly[0].percent === 100);
 
+/* -------------------------------------------------------- school clock -- */
+section('school clock (independent of the host timezone)');
+
+const zone = require('../zone');
+
+// A fixed instant: 2026-07-28 10:05 in Kolkata is 04:35 UTC. Every assertion
+// below is written against that instant, so it holds whether this process runs
+// in Asia/Calcutta or, as on Vercel, in UTC.
+const tenOhFive = new Date('2026-07-28T04:35:00Z');
+
+ok('the class clock is configurable', typeof zone.ZONE === 'string' && zone.ZONE.includes('/'));
+ok('a known zone is accepted', zone.assertValidZone('Asia/Calcutta') === null);
+ok('a nonsense zone is caught', typeof zone.assertValidZone('Mars/Olympus') === 'string');
+
+ok('the date is the school date', zone.dateKey(tenOhFive) === '2026-07-28');
+ok('minutes are the school wall clock', zone.minutesOfDay(tenOhFive) === 605);
+ok('weekday comes from the date, not the clock', zone.weekdayOf('2026-07-28') === 2);
+ok('a date late in the UTC day is still the right school date',
+  zone.dateKey(new Date('2026-07-28T18:45:00Z')) === '2026-07-29');
+ok('and one just before UTC midnight does not roll back',
+  zone.dateKey(new Date('2026-07-27T23:00:00Z')) === '2026-07-28');
+
+ok('10:00 school time resolves to the right instant',
+  zone.instantOf('2026-07-28', '10:00').toISOString() === '2026-07-28T04:30:00.000Z');
+ok('midnight school time resolves correctly',
+  zone.instantOf('2026-07-28', '00:00').toISOString() === '2026-07-27T18:30:00.000Z');
+ok('round trip: instantOf then dateKey agree',
+  zone.dateKey(zone.instantOf('2026-07-28', '00:30')) === '2026-07-28');
+
+ok('adding a day crosses a month end', zone.addDays('2026-07-31', 1) === '2026-08-01');
+ok('and works backwards', zone.addDays('2026-03-01', -1) === '2026-02-28');
+ok('leap years are handled', zone.addDays('2028-02-28', 1) === '2028-02-29');
+
+ok('an exam at 10:00 starts at 04:30 UTC',
+  grading.examStartsAt({ examDate: '2026-07-28', startTime: '10:00' }).toISOString()
+    === '2026-07-28T04:30:00.000Z');
+
+// The same window checks as above, but driven from a UTC instant rather than a
+// locally-constructed Date — this is what a cloud host actually passes in.
+ok('10:05 school time is present, computed from a UTC instant',
+  sched.currentWindow(student, tenOhFive).wouldBe === 'present');
+ok('10:21 school time is late, computed from a UTC instant',
+  sched.currentWindow(student, new Date('2026-07-28T04:51:00Z')).wouldBe === 'late');
+
 /* ------------------------------------------------- per-question deadlines */
 section('per-question clock');
 
-const grading = require('../grading');
 const q30 = { seconds: 30 };
 const secondsAgo = (isoSecondsAgo) => new Date(Date.now() - isoSecondsAgo * 1000).toISOString();
 

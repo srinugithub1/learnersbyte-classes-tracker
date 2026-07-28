@@ -149,7 +149,6 @@ same handler; `public/` is served by Vercel's CDN.
    |---|---|
    | `SUPABASE_URL` | your project URL |
    | `SUPABASE_SERVICE_KEY` | the **service_role** secret |
-   | `TZ` | `Asia/Calcutta` |
    | `APP_TIMEZONE` | `Asia/Calcutta` |
    | `ADMIN_EMAIL` | the first teacher login |
    | `ADMIN_PASSWORD` | a strong password — not the example one |
@@ -157,15 +156,20 @@ same handler; `public/` is served by Vercel's CDN.
 
 5. Deploy, then run any migrations in `supabase/` that have not been applied.
 
-### Why `TZ` matters
+### The school clock
 
-Class times, the fixed 15-minute grace period and exam windows are all worked
-out on the server's own clock. Every cloud host defaults to UTC, which would put
-a 10:00 class at 15:30 and mark half the students absent — silently, and
-plausibly enough that nobody would notice for days. The server therefore checks
-its timezone at startup and **refuses to run** if it disagrees with
-`APP_TIMEZONE`, rather than being quietly wrong. `Asia/Kolkata` is accepted as
-the same clock.
+Class times, the fixed 15-minute grace period and exam windows are all
+wall-clock times in the school's timezone: "the 10:00 class" means 10:00 in
+Kolkata, wherever the server runs.
+
+`zone.js` converts explicitly with `Intl`, and the process timezone is never
+consulted. That matters because **Vercel reserves the `TZ` variable** — you
+cannot set it there, and the process always runs in UTC. Relying on `TZ` would
+have put a 10:00 class at 15:30 and marked half the class absent, silently.
+
+Set `APP_TIMEZONE` instead. It is the only timezone setting, it works the same
+locally and on any host, and `test/logic.test.js` asserts the behaviour against
+fixed UTC instants so a regression cannot slip through.
 
 ### A note on the Hobby plan
 

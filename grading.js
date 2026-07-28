@@ -1,9 +1,14 @@
 /**
  * Exam timing windows and marking.
  *
+ * Exam dates and times are wall-clock in the school's timezone (zone.js), so
+ * they mean the same thing whether the server runs in India or in UTC.
+ *
  * Correct answers never leave the server until an attempt is submitted, so the
  * question paper a student receives has no answer key in it.
  */
+
+const zone = require('./zone');
 
 /** How long after the scheduled finish a student may still begin. */
 const LATE_START_GRACE_MINUTES = 30;
@@ -12,12 +17,14 @@ const LATE_START_GRACE_MINUTES = 30;
 const examDurationSeconds = (exam, questionCount) =>
   Math.max(questionCount, 1) * exam.secondsPerQuestion;
 
-/** The exam's start moment in the server's local timezone. */
+/**
+ * The instant the exam starts.
+ *
+ * The teacher enters a wall-clock time in the school's timezone, so that is
+ * what this resolves — not the server's own clock, which on a host is UTC.
+ */
 function examStartsAt(exam) {
-  const [h, m] = String(exam.startTime || '00:00').split(':').map(Number);
-  const date = new Date(`${exam.examDate}T00:00:00`);
-  date.setHours(h || 0, m || 0, 0, 0);
-  return date;
+  return zone.instantOf(exam.examDate, exam.startTime || '00:00');
 }
 
 function examEndsAt(exam, questionCount) {
@@ -57,7 +64,7 @@ function examWindow(exam, questionCount, attempt = null, now = new Date()) {
   }
   if (now < startsAt) {
     return { ...base, phase: 'upcoming', canStart: false,
-      message: `This exam opens on ${startsAt.toLocaleString()}.` };
+      message: `This exam opens on ${zone.formatDateTime(startsAt)}.` };
   }
   if (now > lastStart) {
     return { ...base, phase: 'closed', canStart: false,
