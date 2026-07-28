@@ -10,17 +10,42 @@ const URL_BASE = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const REST = `${URL_BASE}/rest/v1`;
 
-if (!URL_BASE || !KEY) {
+/**
+ * Whether the database credentials are present. This deliberately does NOT
+ * throw while the module is loading: on a serverless host that turns a missing
+ * environment variable into an opaque "function crashed" page with nothing to
+ * go on. Reporting it per-request gives an answer instead.
+ */
+const missingConfig = () => {
+  const missing = [];
+  if (!URL_BASE) missing.push('SUPABASE_URL');
+  if (!KEY) missing.push('SUPABASE_SERVICE_KEY');
+  return missing.length ? missing : null;
+};
+
+function assertConfigured() {
+  const missing = missingConfig();
+  if (!missing) return;
+  const err = new Error(
+    `Supabase is not configured — ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set.\n` +
+    '    Locally: copy .env.example to .env and fill them in.\n' +
+    '    On Vercel: Project -> Settings -> Environment Variables, then redeploy.'
+  );
+  err.status = 500;
+  err.setupRequired = true;
+  throw err;
+}
+
+if (missingConfig() && require.main) {
   console.error('\n  x Supabase is not configured.');
-  console.error('    Copy .env.example to .env and fill in SUPABASE_URL and');
-  console.error('    SUPABASE_SERVICE_KEY, then start the server again.\n');
-  process.exitCode = 1;
-  throw new Error('Missing SUPABASE_URL / SUPABASE_SERVICE_KEY');
+  console.error(`    Missing: ${missingConfig().join(', ')}`);
+  console.error('    Copy .env.example to .env and fill it in.\n');
 }
 
 /* ------------------------------------------------------- PostgREST client */
 
 async function rest(pathname, { method = 'GET', body, prefer, headers = {} } = {}) {
+  assertConfigured();
   const res = await fetch(`${REST}${pathname}`, {
     method,
     headers: {
@@ -790,6 +815,7 @@ async function pendingResets() {
 }
 
 module.exports = {
+  missingConfig, assertConfigured,
   healthCheck,
   listBatches, getBatch, createBatch, updateBatch, deleteBatch, countBatchMembers,
   listUsers, getUser, findByEmail, findCredentials, createUser, updateUser,

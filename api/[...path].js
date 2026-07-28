@@ -8,24 +8,54 @@
  *
  * Everything outside /api/ (the HTML, CSS, JS and logo in public/) is served by
  * Vercel's CDN and never reaches this function.
+ *
+ * Nothing here is allowed to throw. A serverless function that throws while
+ * loading gives the visitor an opaque "This Serverless Function has crashed"
+ * page with no clue what went wrong, so every failure is caught and turned into
+ * a readable JSON answer instead.
  */
 
-const { requestListener, ensureReady, checkTimezone } = require('../server.js');
+let app = null;
+let loadError = null;
+
+try {
+  app = require('../server.js');
+} catch (err) {
+  loadError = err;
+}
+
+const reply = (res, status, body) => {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(JSON.stringify(body));
+};
 
 module.exports = async function handler(req, res) {
-  // Class times are worked out on the server's clock. Vercel runs in UTC unless
-  // TZ is set, which would shift every class and exam by hours — fail loudly.
-  const tzProblem = checkTimezone();
-  if (tzProblem) {
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({
-      error: 'The server is set to the wrong timezone. Please tell your administrator.',
-      detail: tzProblem,
-    }));
-    return;
+  if (loadError) {
+    return reply(res, 500, {
+      error: 'The server could not start. Please tell your administrator.',
+      detail: loadError.message,
+      fix: 'Check Vercel -> Settings -> Environment Variables, then redeploy.',
+    });
   }
 
-  await ensureReady();
-  return requestListener(req, res);
+  const tzProblem = app.checkTimezone();
+  if (tzProblem) {
+    return reply(res, 500, {
+      error: 'The server timezone setting is wrong. Please tell your administrator.',
+      detail: tzProblem,
+    });
+  }
+
+  try {
+    await app.ensureReady();
+    return await app.requestListener(req, res);
+  } catch (err) {
+    if (res.headersSent) return undefined;
+    console.error('Unhandled error:', err);
+    return reply(res, err.status || 500, {
+      error: err.message || 'Something went wrong.',
+    });
+  }
 };

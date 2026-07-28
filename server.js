@@ -175,6 +175,42 @@ async function studentSnapshot(user) {
 
 const routes = {
 
+  /* Diagnostics. Needs no login and no database, so it still answers when the
+     rest of the app cannot — the first thing to open on a fresh deployment.
+     It reports whether each secret is PRESENT, never what it contains. */
+  'GET /api/health': async (req, res) => {
+    const missing = store.missingConfig();
+    const out = {
+      ok: false,
+      classClock: zone.ZONE,
+      timezoneValid: zone.assertValidZone() === null,
+      hostTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      env: {
+        SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
+        SUPABASE_SERVICE_KEY: Boolean(process.env.SUPABASE_SERVICE_KEY),
+        APP_TIMEZONE: process.env.APP_TIMEZONE || '(not set — using the default)',
+        ADMIN_EMAIL: Boolean(process.env.ADMIN_EMAIL),
+        ADMIN_PASSWORD: Boolean(process.env.ADMIN_PASSWORD),
+      },
+    };
+
+    if (missing) {
+      out.problem = `Missing environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`;
+      out.fix = 'Vercel -> Project -> Settings -> Environment Variables, then redeploy.';
+      return send(res, 500, out);
+    }
+
+    try {
+      await store.healthCheck();
+      out.ok = true;
+      out.database = 'connected';
+    } catch (err) {
+      out.database = 'not ready';
+      out.problem = err.message;
+    }
+    send(res, out.ok ? 200 : 500, out);
+  },
+
   /* ============================================================== AUTH === */
 
   'POST /api/auth/signup': async (req, res) => {
