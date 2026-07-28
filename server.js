@@ -25,6 +25,10 @@ const grading = require('./grading');
 const zone = require('./zone');
 
 const PORT = process.env.PORT || 3000;
+
+/** Why the app cannot serve requests, or null if it can. Set during boot, and
+ *  read on every request so a broken setup explains itself. */
+let STARTUP_PROBLEM = null;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 /** Base64 inflates by ~4/3, so this allows roughly a 12 MB question paper. */
@@ -1421,6 +1425,16 @@ async function requestListener(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const handler = routes[`${req.method} ${url.pathname}`];
 
+  // Misconfigured: static pages still load, but say so rather than half-working.
+  // /api/health is exempt — it is the page that explains the problem.
+  if (STARTUP_PROBLEM && url.pathname.startsWith('/api/') && url.pathname !== '/api/health') {
+    return send(res, 503, {
+      error: 'The server is not set up correctly yet. Please tell your administrator.',
+      detail: STARTUP_PROBLEM,
+      health: '/api/health',
+    });
+  }
+
   if (handler) {
     try {
       await handler(req, res, url);
@@ -1474,29 +1488,45 @@ async function ensureAdmin() {
  */
 const checkTimezone = () => zone.assertValidZone();
 
-async function boot() {
+async function findStartupProblem() {
   const tzProblem = checkTimezone();
-  if (tzProblem) {
-    console.error('\n  x Cannot start — wrong timezone.\n');
-    console.error(`    ${tzProblem}\n`);
-    process.exitCode = 1;
-    return;
+  if (tzProblem) return tzProblem;
+
+  const missing = store.missingConfig();
+  if (missing) {
+    return `Missing environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.\n` +
+      '    On Vercel: Settings -> Environment Variables (tick Production), then redeploy.';
   }
 
   try {
     await store.healthCheck();
   } catch (err) {
-    console.error('\n  x Cannot start — Supabase is not ready.\n');
-    console.error(`    ${err.message}\n`);
-    process.exitCode = 1;
-    return;
+    return err.message;
   }
+  return null;
+}
+
+/**
+ * Start listening — ALWAYS.
+ *
+ * This used to return early when the database was not ready, which reads fine
+ * in a terminal but is fatal on a host: the process exits without binding a
+ * port, the platform reports "this function has crashed", and the actual reason
+ * is buried in logs the operator may never find.
+ *
+ * So a broken configuration now still serves. The login page loads, every API
+ * call answers with the reason, and /api/health spells it out.
+ */
+async function boot() {
+  STARTUP_PROBLEM = await findStartupProblem();
 
   let admin = null;
-  try {
-    admin = await ensureAdmin();
-  } catch (err) {
-    console.error('  ! Could not create the admin account:', err.message);
+  if (!STARTUP_PROBLEM) {
+    try {
+      admin = await ensureAdmin();
+    } catch (err) {
+      console.error('  ! Could not create the admin account:', err.message);
+    }
   }
 
   server.listen(PORT, () => {
@@ -1504,9 +1534,16 @@ async function boot() {
     console.log("  Learner's Byte — Attendance & Exam Portal");
     console.log('  ----------------------------------------');
     console.log(`  Open        : http://localhost:${PORT}/`);
-    console.log(`  Database    : ${process.env.SUPABASE_URL}  connected`);
-    if (admin) {
-      console.log(`  Admin login : ${admin.email}  (${admin.promoted ? 'existing account promoted' : 'created from .env'})`);
+    if (STARTUP_PROBLEM) {
+      console.error('  x NOT READY  :');
+      console.error(`    ${STARTUP_PROBLEM}`);
+      console.error('    The site is up but will not work until this is fixed.');
+      console.error(`    Details at http://localhost:${PORT}/api/health`);
+    } else {
+      console.log(`  Database    : ${process.env.SUPABASE_URL}  connected`);
+      if (admin) {
+        console.log(`  Admin login : ${admin.email}  (${admin.promoted ? 'existing account promoted' : 'created from .env'})`);
+      }
     }
     console.log(`  Class clock : ${zone.ZONE} — set with APP_TIMEZONE, independent of the host`);
     console.log('');
@@ -1522,9 +1559,21 @@ if (require.main === module) boot();
 let readyPromise = null;
 const ensureReady = () => {
   if (!readyPromise) {
-    readyPromise = ensureAdmin().catch((err) => {
-      console.error('  ! Could not create the admin account:', err.message);
-    });
+    readyPromise = (async () => {
+      const missing = store.missingConfig();
+      if (missing) {
+        STARTUP_PROBLEM =
+          `Missing environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.
+` +
+          '    On Vercel: Settings -> Environment Variables (tick Production), then redeploy.';
+        return;
+      }
+      try {
+        await ensureAdmin();
+      } catch (err) {
+        console.error('  ! Could not create the admin account:', err.message);
+      }
+    })();
   }
   return readyPromise;
 };
