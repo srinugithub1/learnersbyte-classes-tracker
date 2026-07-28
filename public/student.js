@@ -91,6 +91,10 @@ $('#joinBatchBtn').addEventListener('click', async () => {
 /* ================================================================= MARK = */
 
 function renderMark() {
+  // The whole panel is removed when marking is paused, so there is nothing to
+  // draw into and every lookup below would be null.
+  if (!ATTENDANCE_ON || !$('#view-mark')) return;
+
   const { user, window: win, todayMark, report } = SNAP;
 
   $('#markAvatar').textContent = initials(user.name || user.email);
@@ -501,9 +505,6 @@ async function refresh() {
 function applyFeatures(features) {
   ATTENDANCE_ON = !features || features.attendance !== false;
 
-  const tab = $('#tabs button[data-view="mark"]');
-  if (tab) tab.hidden = !ATTENDANCE_ON;
-
   const notice = $('#pausedNotice');
   if (notice) {
     notice.hidden = ATTENDANCE_ON;
@@ -511,6 +512,20 @@ function applyFeatures(features) {
       notice.textContent = features.attendanceMessage;
     }
   }
+
+  if (ATTENDANCE_ON) return;
+
+  // Take the tab out of the page rather than setting hidden on it. The
+  // stylesheet gives .navtabs button an explicit `display: inline-flex`, which
+  // beats the browser's built-in [hidden] rule — so hiding it left it visible.
+  const tab = $('#tabs button[data-view="mark"]');
+  if (tab) tab.remove();
+
+  const markView = $('#view-mark');
+  if (markView) markView.remove();
+
+  // Land on the first tab that is actually there.
+  showView('exams');
 }
 
 (async function boot() {

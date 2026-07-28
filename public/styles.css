@@ -1065,3 +1065,9 @@ details.raw-text pre {
 /* An edited row, so unsaved changes are obvious before pressing Save. */
 tr.changed { background: var(--accent-soft); }
 tr.changed td { border-bottom-color: var(--accent-line); }
+
+/* A tab or button with `hidden` must actually disappear. The rules above give
+   these an explicit display, which otherwise beats the browser's [hidden]. */
+.navtabs button[hidden],
+.segmented button[hidden],
+.chips button[hidden] { display: none !important; }
