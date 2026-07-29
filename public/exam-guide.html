@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How to write your online exam — Learner's Byte</title>
+<link rel="stylesheet" href="/styles.css?v=8" />
+<style>
+/* ---------------------------------------------------------------- page --- */
+/* This page is read on a phone, shown inside a popup, and printed to PDF, so
+   the width is capped rather than set and every figure scales down. */
+
+.guide {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+.guide h1 { font-size: 26px; margin: 0 0 6px; }
+.guide .lede { color: var(--ink-2); margin: 0 0 24px; }
+
+.guide section { margin: 0 0 34px; }
+.guide h2 {
+  font-size: 19px; margin: 0 0 4px;
+  display: flex; align-items: center; gap: 10px;
+}
+.guide h2 .n {
+  flex: none;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: #fff;
+  font-size: 14px; font-weight: 700;
+}
+.guide h3 { font-size: 15px; margin: 18px 0 6px; }
+.guide p { margin: 8px 0; line-height: 1.6; }
+.guide ul, .guide ol { margin: 8px 0 8px 22px; line-height: 1.7; padding: 0; }
+.guide li { margin: 3px 0; }
+.guide .note {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 10px 14px; border-radius: 0 8px 8px 0;
+  margin: 14px 0;
+}
+.guide .warn {
+  border-left: 3px solid var(--late);
+  background: var(--late-soft);
+  padding: 10px 14px; border-radius: 0 8px 8px 0;
+  margin: 14px 0;
+}
+.caption {
+  font-size: 12.5px; color: var(--ink-2);
+  margin: 6px 0 0; text-align: center;
+}
+
+/* -------------------------------------------------------------- figures --- */
+/* Drawn with the app's own colours rather than pasted images, so they stay
+   sharp on any screen and in print, and cannot go stale silently. */
+
+.fig {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 14px;
+  margin: 14px 0 0;
+  overflow-x: auto;
+}
+.fig-inner { min-width: 460px; }
+
+.fig-head {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 12px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.fig-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; }
+.fig-logo {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-size: 13px; font-weight: 800;
+}
+.fig-tabs { display: flex; gap: 4px; margin-left: auto; }
+.fig-tab {
+  font-size: 12px; padding: 6px 12px; border-radius: 8px;
+  color: var(--ink-2); white-space: nowrap;
+}
+.fig-tab.on { background: var(--surface); color: var(--ink); font-weight: 650; box-shadow: 0 1px 3px rgba(0,0,0,.14); }
+.fig-tabs-wrap { background: var(--surface-2); border-radius: 10px; padding: 3px; display: flex; gap: 4px; margin-left: auto; }
+
+.fig-card {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); padding: 14px;
+}
+.fig-card-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.fig-card-head b { font-size: 14px; }
+.fig-card-head span { font-size: 12px; color: var(--ink-2); display: block; }
+
+.fig-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface-2);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+}
+.fig-row b { font-size: 13.5px; display: block; }
+.fig-row .meta { font-size: 12px; color: var(--ink-2); }
+.fig-row .side { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.fig-pill {
+  font-size: 11.5px; font-weight: 650;
+  border-radius: 999px; padding: 4px 10px;
+  border: 1px solid var(--line); background: var(--surface);
+  white-space: nowrap;
+}
+.fig-pill.open   { border-color: var(--present); color: var(--present); }
+.fig-pill.late   { border-color: var(--late);    color: var(--late); }
+.fig-pill.shut   { border-color: var(--absent);  color: var(--absent); }
+.fig-pill.soon   { color: var(--ink-2); }
+
+.fig-btn {
+  font-size: 12.5px; font-weight: 650;
+  border-radius: 9px; padding: 8px 14px;
+  background: var(--accent); color: #fff; display: inline-block;
+}
+.fig-btn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+.fig-btn.off { opacity: .55; }
+
+.fig-facts { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.fig-fact {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; min-width: 104px; background: var(--surface-2);
+}
+.fig-fact span { font-size: 11px; color: var(--ink-2); display: block; }
+.fig-fact b { font-size: 16px; }
+
+.fig-timer {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 12px; text-align: right; background: var(--surface-2);
+}
+.fig-timer span { font-size: 10.5px; color: var(--ink-2); display: block; }
+.fig-timer b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.fig-timer.hot { border-color: var(--absent); color: var(--absent); }
+
+.fig-choice {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 7px; font-size: 13px;
+}
+.fig-choice .key {
+  width: 24px; height: 24px; border-radius: 6px; flex: none;
+  display: grid; place-items: center;
+  background: var(--surface-2); font-weight: 700; font-size: 12px;
+}
+.fig-choice.picked { border-color: var(--accent); background: var(--accent-soft); }
+.fig-choice.picked .key { background: var(--accent); color: #fff; }
+
+.fig-dots { display: flex; gap: 5px; flex-wrap: wrap; }
+.fig-dot {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: grid; place-items: center;
+  font-size: 11.5px; border: 1px solid var(--line);
+  background: var(--surface);
+}
+.fig-dot.here { background: var(--accent); color: #fff; border-color: var(--accent); }
+.fig-dot.done { background: var(--present-soft); border-color: var(--present); }
+.fig-dot.locked { background: var(--absent-soft); border-color: var(--absent); }
+
+/* The callout ring that points at the thing being described. */
+.ring { outline: 2px solid #f26a1b; outline-offset: 3px; border-radius: 10px; }
+
+.legend { margin: 10px 0 0; }
+.legend div { display: flex; gap: 10px; align-items: baseline; margin: 6px 0; font-size: 13.5px; }
+.legend .k { flex: none; min-width: 128px; }
+
+table.keys { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+table.keys th, table.keys td {
+  text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.keys th { font-size: 12px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; }
+
+.toolbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 10px; align-items: center;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 12px 20px;
+}
+.toolbar b { font-size: 14px; }
+
+/* ---------------------------------------------------------------- print --- */
+@page { size: A4; margin: 14mm; }
+@media print {
+  .toolbar { display: none; }
+  body { background: #fff; }
+  .guide { max-width: none; padding: 0; }
+  .fig, .guide section { break-inside: avoid; page-break-inside: avoid; }
+  .guide h2 { break-after: avoid; }
+  a { text-decoration: none; color: inherit; }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <b>How to write your online exam</b>
+  <div class="spacer" style="flex:1"></div>
+  <button class="btn sm" onclick="window.print()">Save as PDF / Print</button>
+</div>
+
+<div class="guide">
+
+  <h1>How to write your online exam</h1>
+  <p class="lede">
+    Learner's Byte · in association with Udayan Care. Read this once before your
+    first paper — it takes three minutes and explains the one thing students are
+    usually caught out by: the timer on each question.
+  </p>
+
+  <div class="note">
+    <b>The short version.</b> Open the <b>Online Exam</b> tab → tap your paper →
+    read the details → <b>Start exam</b> → answer each question before its timer
+    runs out → <b>Submit exam</b>. Your score appears straight away.
+  </div>
+
+  <!-- ==================================================== 1. finding it -->
+  <section>
+    <h2><span class="n">1</span> Find your exams</h2>
+    <p>
+      Log in to the student portal and tap <b>Online Exam</b> along the top. This
+      is where every paper released to your batch appears.
+    </p>
+
+    <div class="fig"><div class="fig-inner">
+      <div class="fig-head">
+        <div class="fig-brand"><span class="fig-logo">B</span> Learner's Byte</div>
+        <div class="fig-tabs-wrap">
+          <span class="fig-tab">Attendance</span>
+          <span class="fig-tab on ring">Online Exam</span>
+          <span class="fig-tab">My report</span>
+          <span class="fig-tab">Profile</span>
+        </div>
+      </div>
+      <div class="fig-card">
+        <div class="fig-card-head">
+          <div><b>Online exams</b><span>Papers released to your batch</span></div>
+          <div style="margin-left:auto"><span class="fig-btn ghost ring">? Instructions</span></div>
+        </div>
+        <div class="fig-row">
+          <div><b>BUAIF_AI_PromptEngineering_Assessment_SetB</b>
+            <span class="meta">Jul 30, 2026 at 7:00 PM – 8:15 PM · 75 questions · 75 marks · 60s each · pass 60</span></div>
+          <div class="side"><span class="fig-pill soon">○ Upcoming</span> ›</div>
+        </div>
+        <div class="fig-row">
+          <div><b>BUAIF_AI_PromptEngineering_Assessment_SetA</b>
+            <span class="meta">Jul 29, 2026 at 7:00 PM – 8:15 PM · 75 questions · 75 marks · 60s each · pass 60</span></div>
+          <div class="side"><span class="fig-pill soon">○ Upcoming</span> ›</div>
+        </div>
+      </div>
+    </div></div>
+    <p class="caption">The Online Exam tab, and the <b>Instructions</b> button that brought you here.</p>
+
+    <div class="warn">
+      <b>Don't see your paper?</b> Papers are released to one batch at a time. If
+      the list is empty, your teacher has not released it yet — or your account
+      is not in a batch. Check the <b>Profile</b> tab, and speak to your teacher.
+    </div>
+  </section>
+
+  <!-- ==================================================== 2. reading the list -->
+  <section>
+    <h2><span class="n">2</span> Read the list</h2>
+    <p>Every line tells you what the paper is before you open it:</p>
+
+    <div class="fig"><div class="fig-inner">
+      <div class="fig-row ring">
+        <div><b>BUAIF_AI_PromptEngineering_Assessment_SetA</b>
+          <span class="meta">Jul 29, 2026 at 7:00 PM – 8:15 PM · 75 questions · 75 marks · 60s each · pass 60</span></div>
+        <div class="side"><span class="fig-pill soon">○ Upcoming</span> ›</div>
+      </div>
+    </div></div>
+
+    <div class="legend">
+      <div><span class="k"><b>Jul 29, 2026</b></span> the day the paper runs.</div>
+      <div><span class="k"><b>7:00 PM – 8:15 PM</b></span> it opens at 7:00 and <b>shuts at 8:15</b>. After that you cannot start.</div>
+      <div><span class="k"><b>75 questions</b></span> how many questions in the paper.</div>
+      <div><span class="k"><b>75 marks</b></span> the total marks available.</div>
+      <div><span class="k"><b>60s each</b></span> <b>each question has 60 seconds of its own.</b> Not 60 seconds for the whole paper.</div>
+      <div><span class="k"><b>pass 60</b></span> you need 60 of the 75 marks to pass.</div>
+    </div>
+
+    <h3>The badge on the right</h3>
+    <table class="keys">
+      <tr><th style="width:170px">Badge</th><th>What it means</th></tr>
+      <tr><td><span class="fig-pill soon">○ Upcoming</span></td>
+          <td>Not open yet. Come back at the start time.</td></tr>
+      <tr><td><span class="fig-pill open">● Open now</span></td>
+          <td>You can start it right now.</td></tr>
+      <tr><td><span class="fig-pill late">! In progress</span></td>
+          <td>You already started it and have not submitted. Open it to carry on.</td></tr>
+      <tr><td><span class="fig-pill open">✓ Submitted</span></td>
+          <td>Finished and marked. Your score is shown beside it.</td></tr>
+      <tr><td><span class="fig-pill shut">✕ Closed</span></td>
+          <td>The paper shut. It is too late to start.</td></tr>
+      <tr><td><span class="fig-pill shut">✕ Missed</span></td>
+          <td>It closed and you never started it. You may be able to ask for a
+              second chance — see step 8.</td></tr>
+      <tr><td><span class="fig-pill soon">★ Makeup paper</span></td>
+          <td>A paper set for you alone, because you missed the first one.</td></tr>
+    </table>
+  </section>
+
+  <!-- ==================================================== 3. the details page -->
+  <section>
+    <h2><span class="n">3</span> Open the paper and read the details</h2>
+    <p>
+      Tap anywhere on the row. This screen is the last thing you see before the
+      clock starts — nothing has begun yet, so take your time here.
+    </p>
+
+    <div class="fig"><div class="fig-inner">
+      <div class="fig-card">
+        <div class="fig-card-head">
+          <div><b>BUAIF_AI_PromptEngineering_Assessment_SetA</b>
+            <span>Jul 29, 2026 at 7:00 PM – 8:15 PM · Multiple choice</span></div>
+          <div style="margin-left:auto"><span class="fig-btn ghost">← All exams</span></div>
+        </div>
+
+        <div class="fig-facts">
+          <div class="fig-fact"><span>Questions</span><b>75</b></div>
+          <div class="fig-fact"><span>Total marks</span><b>75</b></div>
+          <div class="fig-fact"><span>Time per question</span><b>60 sec</b></div>
+          <div class="fig-fact"><span>Paper closes at</span><b>8:15 PM</b></div>
+          <div class="fig-fact"><span>Pass marks</span><b>60 of 75</b></div>
+        </div>
+
+        <b style="font-size:13px">Instructions</b>
+        <ul style="font-size:12.5px;margin:6px 0 12px 18px;color:var(--ink-2)">
+          <li>Multiple choice — pick one option per question.</li>
+          <li>Each question has its own timer. When it runs out, that question locks.</li>
+          <li>Answers save automatically. No Save button.</li>
+          <li>Do not refresh or close the page.</li>
+        </ul>
+
+        <div class="fig-row ring" style="margin:0">
+          <div><b>Not open yet</b>
+            <span class="meta">This exam opens on 29 Jul 2026, 7:00 pm. Starts in 4h 52:51</span></div>
+          <div class="side"><span class="fig-btn off">Start exam</span></div>
+        </div>
+      </div>
+    </div></div>
+    <p class="caption">The five facts, your teacher's instructions, and the Start button.</p>
+
+    <p>
+      The <b>Start exam</b> button is greyed out until the paper opens, with a
+      live countdown beside it. Wait on this screen and it turns blue by itself
+      at the start time — you do not need to reload.
+    </p>
+
+    <div class="warn">
+      <b>Press Start only when you are ready to sit the whole paper.</b> The
+      clock begins the moment you press it, and you get <b>one attempt only</b>.
+      Sit somewhere quiet, with a charged device and a steady internet
+      connection, before you press it.
+    </div>
+  </section>
+
+  <!-- ==================================================== 4. sitting it -->
+  <section>
+    <h2><span class="n">4</span> Answer the questions</h2>
+    <p>One question fills the screen at a time.</p>
+
+    <div class="fig"><div class="fig-inner">
+      <div class="fig-card" style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div><b style="font-size:13.5px">BUAIF_AI_PromptEngineering_Assessment_SetA</b>
+          <span style="font-size:12px;color:var(--ink-2);display:block">Question 12 of 75 · 1 mark</span></div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <div class="fig-timer ring"><span>Exam ends in</span><b>42:18</b></div>
+          <div class="fig-timer hot"><span>This question</span><b>00:09</b></div>
+        </div>
+      </div>
+
+      <div class="fig-card" style="margin-bottom:10px">
+        <p style="margin:0 0 12px;font-size:13.5px"><b>Which of these is a prompt engineering technique?</b></p>
+        <div class="fig-choice"><span class="key">A</span> Random guessing</div>
+        <div class="fig-choice picked"><span class="key">B</span> Few-shot prompting</div>
+        <div class="fig-choice"><span class="key">C</span> Cache clearing</div>
+        <div class="fig-choice"><span class="key">D</span> Screen mirroring</div>
+      </div>
+
+      <div class="fig-card" style="display:flex;align-items:center;gap:12px">
+        <span class="fig-btn ghost">← Previous</span>
+        <div class="fig-dots">
+          <span class="fig-dot done">9</span>
+          <span class="fig-dot locked">10</span>
+          <span class="fig-dot done">11</span>
+          <span class="fig-dot here">12</span>
+          <span class="fig-dot">13</span>
+          <span class="fig-dot">14</span>
+        </div>
+        <span class="fig-btn" style="margin-left:auto">Next →</span>
+      </div>
+    </div></div>
+    <p class="caption">Two clocks, the question, and the row of question numbers.</p>
+
+    <h3>The two clocks</h3>
+    <div class="legend">
+      <div><span class="k"><b>Exam ends in</b></span> the whole paper. It runs to the finish time your teacher set and never stops.</div>
+      <div><span class="k"><b>This question</b></span> the question on screen. It turns amber near the end and red in the last seconds.</div>
+    </div>
+
+    <h3>The numbers along the bottom</h3>
+    <div class="legend">
+      <div><span class="k"><span class="fig-dot here">12</span> blue</span> the question you are on.</div>
+      <div><span class="k"><span class="fig-dot done">11</span> green</span> answered.</div>
+      <div><span class="k"><span class="fig-dot locked">10</span> red</span> locked — its time ran out.</div>
+      <div><span class="k"><span class="fig-dot">13</span> plain</span> not opened yet. Its timer has not started.</div>
+    </div>
+    <p>Tap any number to jump straight to that question.</p>
+
+    <div class="note">
+      <b>There is no Save button.</b> Your answer is stored the moment you choose
+      an option. You will never lose an answer by moving to the next question.
+    </div>
+  </section>
+
+  <!-- ==================================================== 5. the timer rule -->
+  <section>
+    <h2><span class="n">5</span> The timer rule — read this twice</h2>
+    <p>
+      <b>Each question's timer starts the first time you open that question</b>,
+      and it does not stop. When it reaches zero:
+    </p>
+    <ul>
+      <li>Whatever you have chosen is kept and marked.</li>
+      <li>The question <b>locks</b>. You may still look at it, but you cannot change it.</li>
+      <li>Coming back later does <b>not</b> give you more time.</li>
+    </ul>
+    <p>
+      A question you have <b>not opened yet</b> still has its full time waiting —
+      so skipping ahead does not waste it. But once you have looked, the clock is
+      running whether you answer or not.
+    </p>
+    <div class="warn">
+      <b>Changing your device's clock does nothing.</b> The timing is decided by
+      the server, not by your phone or laptop. If the two ever disagree, the
+      server wins and the question locks.
+    </div>
+  </section>
+
+  <!-- ==================================================== 6. finishing -->
+  <section>
+    <h2><span class="n">6</span> Finish and get your score</h2>
+    <p>There are two ways a paper ends.</p>
+
+    <h3>You press Submit</h3>
+    <p>
+      <b>Submit exam</b> appears in place of Next on the last question. You will
+      be asked to confirm, and told how many questions are still unanswered.
+    </p>
+
+    <h3>The exam end time arrives</h3>
+    <p>
+      At the finish time the paper is <b>submitted and marked automatically</b>,
+      with whatever you have answered so far. You do not need to be watching —
+      this happens even if your battery dies or your internet drops.
+    </p>
+
+    <div class="fig"><div class="fig-inner" style="min-width:0;text-align:center;padding:8px 0">
+      <div style="font-size:34px;font-weight:800;color:var(--present)">84%</div>
+      <div style="font-size:14px;color:var(--ink-2);margin-bottom:4px">63 / 75</div>
+      <div style="font-size:17px;font-weight:700">Passed</div>
+      <div style="font-size:12.5px;color:var(--ink-2)">You needed 60 of 75 and scored 63.</div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap">
+        <span class="fig-fact"><span>Correct</span><b>63</b></span>
+        <span class="fig-fact"><span>Wrong</span><b>9</b></span>
+        <span class="fig-fact"><span>Unanswered</span><b>3</b></span>
+        <span class="fig-fact"><span>Questions</span><b>75</b></span>
+      </div>
+    </div></div>
+    <p class="caption">Your score, shown the moment the paper is marked.</p>
+
+    <p>
+      Tap <b>Review answers</b> to see every question with the correct answer
+      beside yours. You can come back to it any time from <b>My report</b>.
+    </p>
+  </section>
+
+  <!-- ==================================================== 7. rules -->
+  <section>
+    <h2><span class="n">7</span> The rules, in one place</h2>
+    <ol>
+      <li><b>One attempt only.</b> Once you start, you cannot start again.</li>
+      <li><b>Pick one option per question.</b> These papers are multiple choice.</li>
+      <li><b>No negative marking.</b> A wrong answer costs the same as no answer,
+          so answer every question — never leave one blank.</li>
+      <li><b>Do not refresh or close the page.</b> Both clocks keep running.</li>
+      <li><b>Work on your own.</b> Your teacher can see when every answer was given.</li>
+      <li><b>Answers save themselves.</b> There is no Save button.</li>
+    </ol>
+  </section>
+
+  <!-- ==================================================== 8. problems -->
+  <section>
+    <h2><span class="n">8</span> If something goes wrong</h2>
+
+    <table class="keys">
+      <tr><th style="width:210px">What happened</th><th>What to do</th></tr>
+      <tr>
+        <td>My internet dropped mid-exam</td>
+        <td>Reconnect and open the paper again — it says <b>In progress</b> and
+            you carry on from where you were. Both clocks kept running, so go
+            straight back to answering.</td>
+      </tr>
+      <tr>
+        <td>I closed the page by mistake</td>
+        <td>The same — reopen it from the Online Exam tab. Your saved answers are
+            all still there.</td>
+      </tr>
+      <tr>
+        <td>A question locked before I answered</td>
+        <td>That question is finished and counts as unanswered. Move on — do not
+            spend the next question's time worrying about it.</td>
+      </tr>
+      <tr>
+        <td>I missed the exam completely</td>
+        <td>Open the paper. If it shows <b>Missed</b>, there is a
+            <b>Request to write</b> button. Give your reason and your teacher
+            decides. If approved, a makeup paper appears in your list marked
+            <b>★ Makeup paper</b>.</td>
+      </tr>
+      <tr>
+        <td>The Start button will not turn on</td>
+        <td>The paper has not opened yet — the countdown beside it shows how long
+            is left. Stay on the screen; it enables itself.</td>
+      </tr>
+      <tr>
+        <td>My score looks wrong</td>
+        <td>Open <b>Review answers</b> to see each question marked. If you still
+            think there is a mistake, show your teacher — they can see the same
+            paper.</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- ==================================================== 9. checklist -->
+  <section>
+    <h2><span class="n">9</span> Before you press Start</h2>
+    <ul>
+      <li>Battery above 50%, or plugged in.</li>
+      <li>Steady internet — mobile data is fine, weak signal is not.</li>
+      <li>A quiet place where you will not be interrupted for the full paper.</li>
+      <li>Other apps and tabs closed.</li>
+      <li>You know the finish time, and you have enough time before it.</li>
+    </ul>
+
+    <div class="note">
+      Stuck on something this page does not answer? Ask your teacher before the
+      exam day — not five minutes before the paper opens.
+    </div>
+  </section>
+
+  <p class="caption" style="margin-top:30px">
+    Learner's Byte · in association with Udayan Care
+  </p>
+</div>
+
+</body>
+</html>

@@ -21,6 +21,40 @@ const fmtCountdown = (seconds) => {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
 
+/* ------------------------------------------------------- how-to popup --- */
+/* The full guide lives at /exam-guide.html so it can also be opened on its own
+   and printed to PDF. Showing it in a frame here means one copy, not two. */
+
+function openExamGuide() {
+  const host = document.createElement('div');
+  host.className = 'modal-backdrop';
+  host.innerHTML = `
+    <div class="modal guide-modal" role="dialog" aria-modal="true"
+         aria-label="How to write your online exam">
+      <header>
+        <h2>How to write your online exam</h2>
+        <div class="spacer"></div>
+        <a class="btn ghost sm" href="/exam-guide.html" target="_blank" rel="noopener">
+          Open full page
+        </a>
+        <button class="iconbtn" data-close aria-label="Close">✕</button>
+      </header>
+      <iframe src="/exam-guide.html" title="Exam instructions" class="guide-frame"></iframe>
+      <footer><button class="btn" data-close>Got it</button></footer>
+    </div>`;
+
+  document.body.appendChild(host);
+  const close = () => { host.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+  $$('[data-close]', host).forEach((b) => b.addEventListener('click', close));
+  host.addEventListener('click', (e) => { if (e.target === host) close(); });
+  document.addEventListener('keydown', onKey);
+}
+
+const examHelpBtn = $('#examHelpBtn');
+if (examHelpBtn) examHelpBtn.addEventListener('click', openExamGuide);
+
 /* ------------------------------------------------------------ paper list */
 
 async function loadExamList() {
