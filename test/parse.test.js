@@ -243,5 +243,35 @@ const stray = parseQuestions([
 ].join('\n'));
 ok('a year inside the text does not start a new question', stray.questions.length === 1);
 
+/* ------------------------------------------------------- the sample paper */
+/* samples/ is what teachers are told to copy. If a change to the parser ever
+   stops reading it, that is a broken promise, not a detail. */
+
+const fs = require('fs');
+const path = require('path');
+
+const sampleDir = path.join(__dirname, '..', 'samples');
+for (const file of ['question-paper-sample.txt', 'question-paper-sample.docx']) {
+  const full = path.join(sampleDir, file);
+  const kind = file.endsWith('.docx') ? 'docx' : 'text';
+  const text = extractText(fs.readFileSync(full), file);
+  const sample = parseQuestions(text, { mode: 'both' });
+
+  ok(`the ${kind} sample gives 10 questions`, sample.questions.length === 10,
+    `got ${sample.questions.length}`);
+  ok(`the ${kind} sample raises no warnings`, sample.warnings.length === 0,
+    JSON.stringify(sample.warnings));
+  ok(`the ${kind} sample mixes both styles`,
+    sample.questions.filter((q) => q.type === 'mcq').length === 5 &&
+    sample.questions.filter((q) => q.type === 'fill').length === 5);
+  ok(`the ${kind} sample keeps its multiple-choice answers as letters`,
+    sample.questions[1].correctAnswer === 'B' && sample.questions[1].options.length === 4);
+  ok(`the ${kind} sample keeps the either/or answer`,
+    /zero/.test(sample.questions[2].correctAnswer));
+  ok(`the ${kind} sample ignores the title lines`,
+    sample.questions[0].questionText.startsWith('The capital city'),
+    sample.questions[0].questionText);
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 process.exitCode = fail ? 1 : 0;
