@@ -59,7 +59,7 @@
       <header>
         <div>
           <h2>Fill in past attendance</h2>
-          <p>For class days before the portal was in use, or a day everyone forgot to mark.</p>
+          <p>Lists only the students missing a present or late mark, over any range of dates.</p>
         </div>
         <div class="spacer"></div>
         <button class="btn ghost sm" id="backfillToggle">Open</button>
@@ -68,14 +68,18 @@
       <div id="backfillBody" class="hidden">
         <div class="filterbar" style="margin-bottom:14px">
           <label class="field">
-            <span>Date</span>
-            <input type="date" id="backfillDate" />
+            <span>From date</span>
+            <input type="date" id="backfillFrom" />
+          </label>
+          <label class="field">
+            <span>To date</span>
+            <input type="date" id="backfillTo" />
           </label>
           <label class="field grow">
             <span>Batch</span>
             <select id="backfillBatch"><option value="">All batches</option></select>
           </label>
-          <button class="btn" id="backfillLoad">Show students</button>
+          <button class="btn" id="backfillLoad">Show absent students</button>
         </div>
 
         <div id="backfillResult"></div>
@@ -473,8 +477,8 @@
 <div id="modalSlot"></div>
 <div id="toast" class="toast"></div>
 
-<script src="/common.js"></script>
-<script src="/charts.js"></script>
-<script src="/admin.js"></script>
+<script src="/common.js?v=4"></script>
+<script src="/charts.js?v=4"></script>
+<script src="/admin.js?v=4"></script>
 </body>
 </html>

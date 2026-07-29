@@ -1729,80 +1729,102 @@ $('#logClear').addEventListener('click', () => {
    the period since they signed up. */
 
 let BACKFILL_ROWS = [];
-let BACKFILL_SET = new Map();          // userId -> chosen status
+let BACKFILL_SET = new Map();          // "userId|date" -> chosen status
+
+const backfillKey = (row) => `${row.student.id}|${row.date}`;
 
 $('#backfillToggle').addEventListener('click', () => {
   const body = $('#backfillBody');
   const open = body.classList.toggle('hidden');
   $('#backfillToggle').textContent = open ? 'Open' : 'Close';
-  if (!open && !$('#backfillDate').value) {
-    // Default to yesterday — today is already covered by the roll call above.
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    $('#backfillDate').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    $('#backfillDate').max = new Date().toISOString().slice(0, 10);
+  if (!open && !$('#backfillFrom').value) {
+    // Default to the last week, ending yesterday — today is already covered by
+    // the roll call above.
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const end = new Date();
+    end.setDate(end.getDate() - 1);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    $('#backfillFrom').value = iso(start);
+    $('#backfillTo').value = iso(end);
+    $('#backfillFrom').max = iso(new Date());
+    $('#backfillTo').max = iso(new Date());
   }
 });
 
 $('#backfillLoad').addEventListener('click', loadBackfill);
-$('#backfillDate').addEventListener('change', () => { if (BACKFILL_ROWS.length) loadBackfill(); });
-$('#backfillBatch').addEventListener('change', () => { if (BACKFILL_ROWS.length) loadBackfill(); });
+for (const id of ['#backfillFrom', '#backfillTo', '#backfillBatch']) {
+  $(id).addEventListener('change', () => { if (BACKFILL_ROWS.length) loadBackfill(); });
+}
 
 async function loadBackfill() {
-  const date = $('#backfillDate').value;
-  if (!date) { toast('Pick a date first.', 'error'); return; }
+  const from = $('#backfillFrom').value;
+  const to = $('#backfillTo').value;
+  if (!from || !to) { toast('Pick a from date and a to date.', 'error'); return; }
+  if (from > to) { toast('The from date must come before the to date.', 'error'); return; }
 
   const batchId = $('#backfillBatch').value;
   $('#backfillResult').innerHTML = '<p class="small muted">Loading…</p>';
   BACKFILL_SET = new Map();
 
   try {
-    const q = `date=${encodeURIComponent(date)}${batchId ? `&batchId=${encodeURIComponent(batchId)}` : ''}`;
-    const data = await api(`/api/admin/attendance/day?${q}`);
+    const q = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      + (batchId ? `&batchId=${encodeURIComponent(batchId)}` : '');
+    const data = await api(`/api/admin/attendance/gaps?${q}`);
     BACKFILL_ROWS = data.rows;
     renderBackfill(data);
   } catch (err) {
+    BACKFILL_ROWS = [];
     $('#backfillResult').innerHTML = `<div class="alert error">${esc(err.message)}</div>`;
   }
 }
 
 function renderBackfill(data) {
-  const classDayRows = data.rows.filter((r) => r.classDay);
-
   if (!data.rows.length) {
-    $('#backfillResult').innerHTML =
-      '<div class="table-empty">No students have joined a batch yet.</div>';
+    $('#backfillResult').innerHTML = `
+      <div class="alert success">
+        Nothing to fix — every student is down as present or late on every class
+        day between ${fmtDate(data.from)} and ${fmtDate(data.to)}.
+      </div>`;
     return;
   }
 
+  const { counts } = data;
+
   $('#backfillResult').innerHTML = `
-    <div class="alert ${classDayRows.length ? 'info' : 'warn'}">
-      <b>${esc(data.weekday)}, ${fmtDate(data.date)}.</b>
-      ${classDayRows.length
-        ? `${classDayRows.length} student${classDayRows.length === 1 ? '' : 's'} had class that day,
-           ${data.counts.recorded} already recorded.`
-        : 'No batch runs on that weekday, so nothing is expected. You can still record a day if you need to.'}
+    <div class="alert info">
+      <b>${data.rows.length} record${data.rows.length === 1 ? '' : 's'} to fix</b>
+      — ${counts.students} student${counts.students === 1 ? '' : 's'}
+      across ${counts.days} class day${counts.days === 1 ? '' : 's'}.
+      ${counts.missing} never recorded, ${counts.absent} marked absent.
+      Students already present or late are not listed.
     </div>
+    ${data.truncated ? `
+      <div class="alert warn">
+        Showing the first ${data.rows.length} of ${data.total}. Narrow the range or
+        pick one batch to see the rest — the ones not shown are not saved.
+      </div>` : ''}
 
     <div class="pick-toolbar">
-      <button type="button" class="btn ghost sm" data-all="present">Mark all present</button>
-      <button type="button" class="btn ghost sm" data-all="absent">Mark all absent</button>
+      <button type="button" class="btn ghost sm" data-all="present">Set all present</button>
+      <button type="button" class="btn ghost sm" data-all="late">Set all late</button>
+      <button type="button" class="btn ghost sm" data-all="absent">Set all absent</button>
       <button type="button" class="btn ghost sm" data-all="reset">Undo changes</button>
       <span class="small muted" id="backfillCount">nothing changed yet</span>
     </div>
 
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Student</th><th>Batch</th><th>Class day</th><th>Recorded</th><th>Set to</th>
+        <th>Date</th><th>Student</th><th>Batch</th><th>Recorded</th><th>Set to</th>
       </tr></thead>
       <tbody>${data.rows.map((r) => `
-        <tr data-user="${esc(r.student.id)}">
+        <tr data-key="${esc(backfillKey(r))}">
+          <td class="small">${fmtDate(r.date)}<br /><span class="muted">${esc(r.weekday)}</span></td>
           <td>${who(r.student)}</td>
           <td class="small">${esc(r.student.batchName || '—')}</td>
-          <td>${r.classDay
-            ? '<span class="small muted">yes</span>'
-            : '<span class="small muted">no class</span>'}</td>
-          <td>${r.status ? statusPill(r.status) : '<span class="small muted">—</span>'}</td>
+          <td>${r.status
+            ? statusPill(r.status)
+            : '<span class="small muted">not recorded</span>'}</td>
           <td>
             <div class="setter" role="group" aria-label="Set status">
               <button type="button" data-set="present" title="Present">✓</button>
@@ -1815,15 +1837,15 @@ function renderBackfill(data) {
       </tbody>
     </table></div>
 
-    <button class="btn" id="backfillSave" disabled>Save this day</button>`;
+    <button class="btn" id="backfillSave" disabled>Save changes</button>`;
 
   $$('#backfillResult [data-set]').forEach((b) => {
     b.addEventListener('click', () => {
       const row = b.closest('tr');
-      const userId = row.dataset.user;
+      const key = row.dataset.key;
       const status = b.dataset.set;
-      if (BACKFILL_SET.get(userId) === status) BACKFILL_SET.delete(userId);
-      else BACKFILL_SET.set(userId, status);
+      if (BACKFILL_SET.get(key) === status) BACKFILL_SET.delete(key);
+      else BACKFILL_SET.set(key, status);
       paintBackfillRow(row);
       updateBackfillCount();
     });
@@ -1833,8 +1855,7 @@ function renderBackfill(data) {
     b.addEventListener('click', () => {
       const what = b.dataset.all;
       if (what === 'reset') BACKFILL_SET.clear();
-      // "All" means everyone who actually had class that day, not everyone.
-      else data.rows.filter((r) => r.classDay).forEach((r) => BACKFILL_SET.set(r.student.id, what));
+      else data.rows.forEach((r) => BACKFILL_SET.set(backfillKey(r), what));
       $$('#backfillResult tbody tr').forEach(paintBackfillRow);
       updateBackfillCount();
     });
@@ -1844,7 +1865,7 @@ function renderBackfill(data) {
 }
 
 function paintBackfillRow(row) {
-  const chosen = BACKFILL_SET.get(row.dataset.user) || null;
+  const chosen = BACKFILL_SET.get(row.dataset.key) || null;
   row.classList.toggle('changed', Boolean(chosen));
   $$('[data-set]', row).forEach((b) =>
     b.setAttribute('aria-pressed', String(b.dataset.set === chosen)));
@@ -1852,33 +1873,58 @@ function paintBackfillRow(row) {
 
 function updateBackfillCount() {
   const n = BACKFILL_SET.size;
-  $('#backfillCount').textContent = n
-    ? `${n} student${n === 1 ? '' : 's'} to save`
-    : 'nothing changed yet';
-  $('#backfillSave').disabled = n === 0;
+  const save = $('#backfillSave');
+  const count = $('#backfillCount');
+  if (count) {
+    count.textContent = n ? `${n} record${n === 1 ? '' : 's'} to save` : 'nothing changed yet';
+  }
+  if (save) save.disabled = n === 0;
 }
 
+/**
+ * Saved in chunks. A month of back-fill can be thousands of records, and one
+ * giant request is the thing most likely to time out — several smaller ones
+ * finish, and a failure part-way tells the teacher exactly how far it got.
+ */
 async function saveBackfill() {
   const btn = $('#backfillSave');
-  const date = $('#backfillDate').value;
-  const entries = [...BACKFILL_SET].map(([userId, status]) => ({ userId, status }));
+  const entries = [...BACKFILL_SET].map(([key, status]) => {
+    const [userId, date] = key.split('|');
+    return { userId, date, status };
+  });
+
+  const CHUNK = 300;
+  let saved = 0;
+  let cleared = 0;
+  const problems = [];
 
   btn.disabled = true;
-  btn.textContent = 'Saving…';
   try {
-    const res = await api('/api/admin/attendance/bulk', {
-      method: 'POST', body: { date, entries },
-    });
-    toast(`Saved ${res.saved} record${res.saved === 1 ? '' : 's'} for ${fmtDate(date)}.`, 'ok');
-    if (res.problems && res.problems.length) {
-      toast(`${res.problems.length} could not be saved.`, 'warn');
+    for (let i = 0; i < entries.length; i += CHUNK) {
+      const slice = entries.slice(i, i + CHUNK);
+      btn.textContent = entries.length > CHUNK
+        ? `Saving ${Math.min(i + CHUNK, entries.length)} of ${entries.length}…`
+        : 'Saving…';
+      const res = await api('/api/admin/attendance/bulk', {
+        method: 'POST', body: { entries: slice },
+      });
+      saved += res.saved || 0;
+      cleared += res.cleared || 0;
+      if (res.problems) problems.push(...res.problems);
     }
+
+    toast(`Saved ${saved} record${saved === 1 ? '' : 's'}${cleared ? `, cleared ${cleared}` : ''}.`, 'ok');
+    if (problems.length) toast(`${problems.length} could not be saved.`, 'warn');
+
     await loadBackfill();
     loadOverview();
   } catch (err) {
-    toast(err.message, 'error');
+    toast(saved
+      ? `${saved} saved, then it stopped: ${err.message}`
+      : err.message, 'error');
+    await loadBackfill();
   } finally {
-    btn.textContent = 'Save this day';
+    btn.textContent = 'Save changes';
     updateBackfillCount();
   }
 }

@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node test/logic.test.js && node test/parse.test.js",
-    "test:all": "node test/logic.test.js && node test/parse.test.js && node test/e2e.test.js && node test/exam.test.js && node test/attempt.test.js && node test/makeup.test.js"
+    "test:all": "node test/logic.test.js && node test/parse.test.js && node test/e2e.test.js && node test/exam.test.js && node test/attempt.test.js && node test/makeup.test.js && node test/backfill.test.js"
   },
   "main": "server.js"
 }

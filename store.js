@@ -431,6 +431,74 @@ async function setAttendance({ userId, date, status, note }) {
   return toMark(row);
 }
 
+/**
+ * Record many student-days in one go.
+ *
+ * setAttendance costs two round trips per record, which is fine for one student
+ * but hopeless for a month of back-fill — 150 students over 20 class days would
+ * be 6000 requests and the save would time out long before finishing. Writing
+ * is one upsert for the whole batch: the (user_id, attend_date) unique key
+ * turns a repeat into an update, so an existing "absent" is corrected in place
+ * without a delete first. Only the rows being removed still need one delete per
+ * date, and clearing a record is rare.
+ */
+async function setAttendanceMany(entries, note = 'Filled in by teacher') {
+  // Last instruction wins, so a repeated student-day cannot reach the database
+  // twice in one request — Postgres rejects a batch that conflicts with itself.
+  const byKey = new Map();
+  for (const e of entries || []) {
+    if (e && e.userId && e.date) byKey.set(`${e.userId}|${e.date}`, e);
+  }
+
+  const rows = [];
+  const clears = new Map();                  // date -> [userId]
+
+  for (const e of byKey.values()) {
+    if (e.status === 'clear') {
+      if (!clears.has(e.date)) clears.set(e.date, []);
+      clears.get(e.date).push(e.userId);
+      continue;
+    }
+    rows.push({
+      user_id: e.userId, attend_date: e.date, status: e.status,
+      source: 'admin', ip: 'admin-override', note,
+    });
+  }
+
+  for (const [date, ids] of clears) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200).map(enc).join(',');
+      await remove('attendance', `attend_date=eq.${enc(date)}&user_id=in.(${chunk})`);
+    }
+  }
+
+  for (let i = 0; i < rows.length; i += 500) {
+    // on_conflict names the unique key to merge on. Without it PostgREST looks
+    // at the primary key only, and a repeat save fails on the unique index.
+    await rest('/attendance?on_conflict=user_id,attend_date', {
+      method: 'POST',
+      body: rows.slice(i, i + 500),
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    });
+  }
+
+  let cleared = 0;
+  for (const ids of clears.values()) cleared += ids.length;
+  return { saved: rows.length, cleared };
+}
+
+/** Move several students' accountability start back to the same date at once. */
+async function setAttendanceFrom(userIds, date) {
+  const ids = [...new Set(userIds || [])];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200).map(enc).join(',');
+    await patch('users', `id=in.(${chunk})`, {
+      attendance_from: date, updated_at: new Date().toISOString(),
+    });
+  }
+  return ids.length;
+}
+
 /* --------------------------------------------------------- password resets */
 
 async function createReset({ userId, tokenHash, expiresAt }) {
@@ -838,6 +906,7 @@ module.exports = {
   listUsers, getUser, findByEmail, findCredentials, createUser, updateUser,
   touchLogin, deleteUser, countAdmins,
   listAttendance, listAttendanceWithUsers, findMark, markAttendance, setAttendance,
+  setAttendanceMany, setAttendanceFrom,
   createReset, findReset, consumeReset, invalidateResets, pendingResets,
   listExams, getExam, createExam, updateExam, deleteExam,
   listQuestions, replaceQuestions,
