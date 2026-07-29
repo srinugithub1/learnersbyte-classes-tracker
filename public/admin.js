@@ -714,10 +714,14 @@ function renderExamTable() {
     <tr>
       <td><b>${esc(e.title || 'Untitled exam')}</b></td>
       <td class="small">${esc(e.batch ? e.batch.name : '—')}</td>
-      <td class="small nowrap">${fmtDate(e.examDate)}<br><span class="muted">${fmtClock(e.startTime)}</span></td>
+      <td class="small nowrap">${fmtDate(e.examDate)}<br><span class="muted">${fmtClock(e.startTime)}${
+        e.endTime ? ` – ${fmtClock(e.endTime)}` : ''}</span></td>
       <td class="small">${MODE_LABEL[e.questionMode]}</td>
       <td class="tnum">${e.questionCount ?? 0} / ${e.totalQuestions}</td>
-      <td class="tnum">${e.totalMarks}</td>
+      <td class="tnum">${e.totalMarks}${
+        e.passMarks === null || e.passMarks === undefined
+          ? ''
+          : `<br><span class="small muted">pass ${e.passMarks}</span>`}</td>
       <td class="small">${e.source === 'upload'
         ? `⭱ Upload${e.sourceFilename ? `<br><span class="muted">${esc(e.sourceFilename)}</span>` : ''}`
         : '✎ Manual'}</td>
@@ -833,6 +837,11 @@ $('#pickMissed').addEventListener('click', () => {
 });
 $('#pickClear').addEventListener('click', () => { PICKED.clear(); renderPickList(); });
 
+const hhmmToMinutes = (value) => {
+  const [h, m] = String(value || '').split(':').map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+};
+
 function updateExamHint() {
   const form = $('#examForm');
   const q = Number(form.totalQuestions.value) || 0;
@@ -840,13 +849,37 @@ function updateExamHint() {
   const secs = Number(form.secondsPerQuestion.value) || 0;
   const per = q ? Math.round((marks / q) * 100) / 100 : 0;
   const total = q * secs;
-  $('#examSummaryHint').textContent = q && marks && secs
-    ? `${q} questions · ${per} mark${per === 1 ? '' : 's'} each · total exam time ${
-        total >= 60 ? `${Math.round(total / 60)} min` : `${total} sec`}.`
-    : '';
+
+  if (!(q && marks && secs)) { $('#examSummaryHint').textContent = ''; return; }
+
+  let text = `${q} questions · ${per} mark${per === 1 ? '' : 's'} each · question timers add up to ${
+    total >= 60 ? `${Math.round(total / 60)} min` : `${total} sec`}.`;
+
+  const start = hhmmToMinutes(form.startTime.value);
+  const end = hhmmToMinutes(form.endTime.value);
+  if (start !== null && end !== null) {
+    const windowMins = end - start;
+    text += windowMins <= 0
+      ? ' The end time must be after the start time.'
+      : ` The paper shuts after ${windowMins} min, whether or not every question has been reached.`;
+    // Worth saying out loud: the window, not the timers, will end this paper.
+    if (windowMins > 0 && windowMins * 60 < total) {
+      text += ' That is less than the question timers allow, so some students may run out of exam before they run out of questions.';
+    }
+  }
+
+  const pass = String(form.passMarks.value || '').trim();
+  if (pass !== '') {
+    const passNum = Number(pass);
+    text += passNum > marks
+      ? ' Pass marks cannot be more than the total marks.'
+      : ` Pass at ${passNum} of ${marks}.`;
+  }
+
+  $('#examSummaryHint').textContent = text;
 }
-['totalQuestions', 'totalMarks', 'secondsPerQuestion'].forEach((name) =>
-  $(`#examForm [name="${name}"]`).addEventListener('input', updateExamHint));
+['totalQuestions', 'totalMarks', 'secondsPerQuestion', 'startTime', 'endTime', 'passMarks']
+  .forEach((name) => $(`#examForm [name="${name}"]`).addEventListener('input', updateExamHint));
 
 $('#examForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -868,8 +901,11 @@ $('#examForm').addEventListener('submit', async (e) => {
         title: data.title,
         examDate: data.examDate,
         startTime: data.startTime,
+        endTime: data.endTime || null,
         totalQuestions: Number(data.totalQuestions),
         totalMarks: Number(data.totalMarks),
+        // Blank means "no pass mark", which is not the same as zero.
+        passMarks: String(data.passMarks || '').trim() === '' ? null : Number(data.passMarks),
         secondsPerQuestion: Number(data.secondsPerQuestion),
         questionMode: examMode,
         instructions: data.instructions,
@@ -908,7 +944,8 @@ function enterStep2() {
   setStep(2);
 
   $('#examStep2Sub').textContent =
-    `${e.title || 'Untitled exam'} · ${e.batch ? e.batch.name : ''} · ${fmtDate(e.examDate)} ${fmtClock(e.startTime)} · ` +
+    `${e.title || 'Untitled exam'} · ${e.batch ? e.batch.name : ''} · ${fmtDate(e.examDate)} ${fmtClock(e.startTime)}${
+      e.endTime ? `–${fmtClock(e.endTime)}` : ''} · ` +
     `${e.totalQuestions} questions · ${e.totalMarks} marks · ${e.secondsPerQuestion}s each`;
 
   $('#manualHint').textContent = e.questionMode === 'fill'
@@ -1242,10 +1279,14 @@ async function openExam(id) {
           ${[
             ['Batch', exam.batch ? exam.batch.name : '—'],
             ['Course', exam.batch ? exam.batch.course || '—' : '—'],
-            ['Date & time', `${fmtDate(exam.examDate)} at ${fmtClock(exam.startTime)}`],
+            ['Date & time', `${fmtDate(exam.examDate)} at ${fmtClock(exam.startTime)}${
+              exam.endTime ? `, ends ${fmtClock(exam.endTime)}` : ''}`],
             ['Question style', MODE_LABEL[exam.questionMode]],
             ['Questions', `${questions.length} saved (planned ${exam.totalQuestions})`],
             ['Marks', `${totalMarks} allotted (planned ${exam.totalMarks})`],
+            ['Pass marks', exam.passMarks === null || exam.passMarks === undefined
+              ? 'Not set — no pass or fail shown'
+              : `${exam.passMarks} of ${exam.totalMarks}`],
             ['Time per question', `${exam.secondsPerQuestion} seconds`],
             ['Source', exam.source === 'upload' ? `Uploaded ${exam.sourceFilename || 'file'}` : 'Created manually'],
           ].map(([k, v]) => `<dt class="small muted">${k}</dt><dd style="margin:0">${esc(v)}</dd>`).join('')}
@@ -1329,7 +1370,9 @@ function startMakeupFor(exam, missedRows) {
   form.title.value = `${exam.title || 'Exam'} — makeup`;
   form.totalQuestions.value = exam.totalQuestions;
   form.totalMarks.value = exam.totalMarks;
+  form.passMarks.value = exam.passMarks === null || exam.passMarks === undefined ? '' : exam.passMarks;
   form.secondsPerQuestion.value = exam.secondsPerQuestion;
+  // Deliberately not the original end time — a makeup runs on its own day.
 
   // Switch to "selected students" and tick everyone who missed.
   const selBtn = $('#examAudience button[data-audience="selected"]');
@@ -1445,7 +1488,9 @@ async function openExamResults(examId) {
           <div class="stat good"><div class="label">Highest</div><div class="value">${summary.highest}%</div></div>
           <div class="stat bad"><div class="label">Lowest</div><div class="value">${summary.lowest}%</div></div>
           <div class="stat"><div class="label">Passed</div><div class="value">${summary.passed}</div>
-            <div class="foot">40% or above</div></div>
+            <div class="foot">${summary.passMarks === null || summary.passMarks === undefined
+              ? 'no pass mark set — 40% or above'
+              : `${summary.passMarks} marks or above`}</div></div>
           ${summary.missed ? `
           <div class="stat bad"><div class="label">Missed</div><div class="value">${summary.missed}</div>
             <div class="foot">${summary.awaitingDecision} waiting on you</div></div>` : ''}
@@ -1483,7 +1528,11 @@ async function openExamResults(examId) {
               <td class="tnum" style="color:var(--absent);font-weight:650">${r.wrongCount}</td>
               <td class="tnum">${r.unansweredCount}</td>
               <td>${r.status === 'submitted'
-                ? `${meter(r.percent)}<span class="small muted">${r.score}/${r.totalMarks}</span>`
+                ? `${meter(r.percent)}<span class="small muted">${r.score}/${r.totalMarks}</span>${
+                  r.passed === null || r.passed === undefined ? '' : `<br>${
+                    r.passed
+                      ? '<span class="pill present"><span class="ico" aria-hidden="true">✓</span>Pass</span>'
+                      : '<span class="pill absent"><span class="ico" aria-hidden="true">✕</span>Fail</span>'}`}`
                 : '<span class="muted">—</span>'}</td>
               <td class="small">${r.submittedAt ? fmtDateTime(r.submittedAt) : '—'}</td>
               <td>${r.attemptId && r.status === 'submitted'
@@ -1562,15 +1611,23 @@ async function loadExamScores() {
     }
 
     const average = Math.round((attempts.reduce((s, a) => s + a.percent, 0) / attempts.length) * 10) / 10;
-    const passed = attempts.filter((a) => a.percent >= 40).length;
+    // Each paper is judged by its own pass mark; papers without one fall back
+    // to the 40% rule of thumb this screen has always used.
+    const isPass = (a) => (a.passed === null || a.passed === undefined ? a.percent >= 40 : a.passed);
+    const passed = attempts.filter(isPass).length;
+    const graded = attempts.filter((a) => a.passed !== null && a.passed !== undefined).length;
 
     mount.innerHTML = `
       <div class="stats compact" style="margin-bottom:16px">
         <div class="stat"><div class="label">Papers submitted</div><div class="value">${attempts.length}</div></div>
         <div class="stat accent"><div class="label">Average score</div><div class="value">${average}%</div></div>
         <div class="stat good"><div class="label">Passed</div><div class="value">${passed}</div>
-          <div class="foot">40% or above</div></div>
-        <div class="stat bad"><div class="label">Below 40%</div><div class="value">${attempts.length - passed}</div></div>
+          <div class="foot">${graded === attempts.length
+            ? 'against each exam’s pass mark'
+            : graded
+              ? `${graded} against a pass mark, the rest at 40%`
+              : '40% or above'}</div></div>
+        <div class="stat bad"><div class="label">Not passed</div><div class="value">${attempts.length - passed}</div></div>
       </div>
 
       <div class="table-wrap"><table>
@@ -1588,7 +1645,11 @@ async function loadExamScores() {
             <td class="tnum" style="color:var(--present);font-weight:650">${a.correctCount}</td>
             <td class="tnum" style="color:var(--absent);font-weight:650">${a.wrongCount}</td>
             <td class="tnum">${a.unansweredCount}</td>
-            <td>${meter(a.percent)}<span class="small muted">${a.score}/${a.totalMarks}</span></td>
+            <td>${meter(a.percent)}<span class="small muted">${a.score}/${a.totalMarks}</span>${
+              a.passed === null || a.passed === undefined ? '' : `<br>${
+                a.passed
+                  ? '<span class="pill present"><span class="ico" aria-hidden="true">✓</span>Pass</span>'
+                  : '<span class="pill absent"><span class="ico" aria-hidden="true">✕</span>Fail</span>'}`}</td>
             <td class="small">${fmtDateTime(a.submittedAt)}</td>
             <td><button class="btn ghost sm" data-paper="${a.id}">Paper</button></td>
           </tr>`).join('')}

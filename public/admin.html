@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Teacher Portal — Learner's Byte</title>
-<link rel="stylesheet" href="/styles.css?v=6" />
+<link rel="stylesheet" href="/styles.css?v=7" />
 <link rel="icon" href="/logo-mark.svg" />
 </head>
 <body>
@@ -240,8 +240,12 @@
             <input type="date" name="examDate" id="examDate" required />
           </label>
           <label class="field">
-            <span>Exam time <i class="req">*</i></span>
+            <span>Start time <i class="req">*</i></span>
             <input type="time" name="startTime" value="10:00" required />
+          </label>
+          <label class="field">
+            <span>End time</span>
+            <input type="time" name="endTime" />
           </label>
           <label class="field">
             <span>Total questions <i class="req">*</i></span>
@@ -252,10 +256,21 @@
             <input type="number" name="totalMarks" value="20" min="1" max="10000" step="0.5" required />
           </label>
           <label class="field">
+            <span>Pass marks</span>
+            <input type="number" name="passMarks" min="0" max="10000" step="0.5" placeholder="e.g. 8" />
+          </label>
+          <label class="field">
             <span>Seconds per question <i class="req">*</i></span>
             <input type="number" name="secondsPerQuestion" value="60" min="5" max="3600" required />
           </label>
         </div>
+
+        <p class="small muted" style="margin:8px 0 0">
+          <b>End time</b> shuts the paper at that moment — anyone still writing is
+          submitted and marked automatically. Leave it blank and the paper runs for
+          as long as the per-question timers allow.
+          <b>Pass marks</b> decides who passes; leave blank for no pass or fail.
+        </p>
 
         <div class="field" style="margin-top:16px">
           <span>Question style <i class="req">*</i></span>
@@ -483,8 +498,8 @@
 <div id="modalSlot"></div>
 <div id="toast" class="toast"></div>
 
-<script src="/common.js?v=6"></script>
-<script src="/charts.js?v=6"></script>
-<script src="/admin.js?v=6"></script>
+<script src="/common.js?v=7"></script>
+<script src="/charts.js?v=7"></script>
+<script src="/admin.js?v=7"></script>
 </body>
 </html>

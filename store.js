@@ -130,6 +130,18 @@ async function healthCheck() {
     e.setupRequired = true;
     throw e;
   }
+  // A fixed finish time and a pass mark live on the exam itself.
+  try {
+    await select('exams', 'select=end_time,pass_marks&limit=1');
+  } catch (err) {
+    const e = new Error(
+      'Your "exams" table has no end_time / pass_marks columns yet.\n' +
+      '    Run supabase/migration-exam-window.sql in the Supabase SQL Editor,\n' +
+      '    then restart this server.'
+    );
+    e.setupRequired = true;
+    throw e;
+  }
   // Per-question deadlines are kept on the server, in exam_answers.opened_at.
   try {
     await select('exam_answers', 'select=opened_at&limit=1');
@@ -533,8 +545,10 @@ const toExam = (r) => (!r ? null : {
   title: r.title || '',
   examDate: r.exam_date,
   startTime: r.start_time ? String(r.start_time).slice(0, 5) : '',
+  endTime: r.end_time ? String(r.end_time).slice(0, 5) : '',
   totalQuestions: r.total_questions,
   totalMarks: Number(r.total_marks),
+  passMarks: r.pass_marks === null || r.pass_marks === undefined ? null : Number(r.pass_marks),
   secondsPerQuestion: r.seconds_per_question,
   questionMode: r.question_mode,
   source: r.source,
@@ -579,8 +593,10 @@ async function createExam(data) {
     title: data.title || '',
     exam_date: data.examDate,
     start_time: data.startTime,
+    end_time: data.endTime || null,
     total_questions: data.totalQuestions,
     total_marks: data.totalMarks,
+    pass_marks: data.passMarks === null || data.passMarks === undefined ? null : data.passMarks,
     seconds_per_question: data.secondsPerQuestion,
     question_mode: data.questionMode,
     instructions: data.instructions || '',
@@ -596,6 +612,7 @@ async function updateExam(id, data) {
   const row = {};
   const map = {
     title: 'title', examDate: 'exam_date', startTime: 'start_time',
+    endTime: 'end_time', passMarks: 'pass_marks',
     totalQuestions: 'total_questions', totalMarks: 'total_marks',
     secondsPerQuestion: 'seconds_per_question', questionMode: 'question_mode',
     source: 'source', sourceFilename: 'source_filename', status: 'status',

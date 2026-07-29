@@ -12,6 +12,8 @@ let PAPER = null;          // { exam, attempt, questions }
 let INDEX = 0;             // which question is on screen
 let TICKER = null;         // the 1-second interval
 let REMAINING = [];        // seconds left per question
+let EXAM_LEFT = null;      // seconds until the whole paper shuts, null if open-ended
+let CLOSING = false;       // an auto-submit is already under way
 let SAVING = false;
 
 const fmtCountdown = (seconds) => {
@@ -50,9 +52,22 @@ const MAKEUP_PILL = {
 const MISSED_PILL =
   '<span class="pill absent"><span class="ico" aria-hidden="true">✕</span>Missed</span>';
 
+/** Passed, failed, or — when no pass mark was set — just the score. */
+const passLabel = (attempt) => {
+  if (!attempt || attempt.passed === null || attempt.passed === undefined) return '';
+  return attempt.passed
+    ? '<span class="pill present"><span class="ico" aria-hidden="true">✓</span>Pass</span>'
+    : '<span class="pill absent"><span class="ico" aria-hidden="true">✕</span>Fail</span>';
+};
+
 const examSidePill = (e) => {
   if (e.attempt && e.attempt.status === 'submitted') {
-    return `<div class="score-chip ${e.attempt.percent >= 40 ? 'good' : 'bad'}">
+    // With a pass mark the tone follows the teacher's line, not a guess at 40%.
+    const good = e.attempt.passed === null || e.attempt.passed === undefined
+      ? e.attempt.percent >= 40
+      : e.attempt.passed;
+    return `${passLabel(e.attempt)}
+            <div class="score-chip ${good ? 'good' : 'bad'}">
               <b>${e.attempt.score}/${e.attempt.totalMarks}</b><span>${e.attempt.percent}%</span>
             </div>`;
   }
@@ -74,9 +89,11 @@ function renderExamList() {
       <div class="exam-row-main">
         <b>${esc(e.title || 'Untitled exam')}</b>
         <span class="small muted">
-          ${fmtDate(e.examDate)} at ${fmtClock(e.startTime)} ·
+          ${fmtDate(e.examDate)} at ${fmtClock(e.startTime)}${
+            e.endTime ? ` – ${fmtClock(e.endTime)}` : ''} ·
           ${e.questionCount} question${e.questionCount === 1 ? '' : 's'} ·
-          ${e.marksTotal} marks · ${e.secondsPerQuestion}s each
+          ${e.marksTotal} marks · ${e.secondsPerQuestion}s each${
+            e.passMarks === null || e.passMarks === undefined ? '' : ` · pass ${e.passMarks}`}
         </span>
       </div>
       <div class="exam-row-side">
@@ -111,14 +128,23 @@ function openBrief(examId) {
 
   $('#briefTitle').textContent = exam.title || 'Untitled exam';
   $('#briefMeta').textContent =
-    `${fmtDate(exam.examDate)} at ${fmtClock(exam.startTime)} · ${MODE_TEXT[exam.questionMode]}`;
+    `${fmtDate(exam.examDate)} at ${fmtClock(exam.startTime)}${
+      exam.endTime ? ` – ${fmtClock(exam.endTime)}` : ''} · ${MODE_TEXT[exam.questionMode]}`;
 
-  $('#briefFacts').innerHTML = [
+  const facts = [
     ['Questions', exam.questionCount],
     ['Total marks', exam.marksTotal],
     ['Time per question', `${exam.secondsPerQuestion} sec`],
-    ['Total time', `${Math.ceil((exam.questionCount * exam.secondsPerQuestion) / 60)} min`],
-  ].map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join('');
+  ];
+  facts.push(exam.endTime
+    ? ['Paper closes at', fmtClock(exam.endTime)]
+    : ['Total time', `${Math.ceil((exam.questionCount * exam.secondsPerQuestion) / 60)} min`]);
+  if (exam.passMarks !== null && exam.passMarks !== undefined) {
+    facts.push(['Pass marks', `${exam.passMarks} of ${exam.marksTotal}`]);
+  }
+
+  $('#briefFacts').innerHTML = facts
+    .map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join('');
 
   $('#briefInstructions').innerHTML = exam.instructions
     ? esc(exam.instructions).replace(/\n/g, '<br>')
@@ -318,6 +344,13 @@ async function startExam(examId) {
     INDEX = PAPER.questions.findIndex((q) => !q.locked);
     if (INDEX === -1) INDEX = 0;
 
+    // Only a paper with a teacher-set finish time has a whole-exam countdown.
+    CLOSING = false;
+    EXAM_LEFT = PAPER.window && PAPER.window.fixedEnd
+      ? Math.max(0, Number(PAPER.window.secondsLeft) || 0)
+      : null;
+    $('#examTimer').hidden = EXAM_LEFT === null;
+
     $('#runnerTitle').textContent = PAPER.exam.title || 'Exam';
     showExamScreen('runner');
     renderQuestion();
@@ -433,11 +466,18 @@ async function openCurrent() {
       method: 'POST',
       body: { attemptId: PAPER.attempt.id, questionId: q.id },
     });
+    // The paper's own clock, corrected against the server on every check.
+    if (typeof clock.examSecondsLeft === 'number') {
+      EXAM_LEFT = Math.max(0, clock.examSecondsLeft);
+      paintExamTimer();
+      if (EXAM_LEFT === 0) { finishOnTime(); return; }
+    }
     if (INDEX !== at) return;                 // moved on while we waited
     REMAINING[at] = clock.remaining;
     if (clock.locked) { q.locked = true; renderQuestion(); return; }
     paintTimer();
-  } catch {
+  } catch (err) {
+    if (err && err.data && err.data.examOver) { await showFinishedPaper(); return; }
     /* Offline or slow: keep showing the local countdown. The server still has
        the final say when the answer is sent. */
   }
@@ -452,6 +492,14 @@ function startTicker() {
   clearInterval(TICKER);
   let ticks = 0;
   TICKER = setInterval(() => {
+    // The whole paper's clock runs whatever question is on screen, and whether
+    // or not that question is locked.
+    if (EXAM_LEFT !== null) {
+      EXAM_LEFT = Math.max(0, EXAM_LEFT - 1);
+      paintExamTimer();
+      if (EXAM_LEFT === 0) { finishOnTime(); return; }
+    }
+
     const q = currentQuestion();
     if (!q || q.locked) { paintTimer(); return; }
 
@@ -464,6 +512,31 @@ function startTicker() {
 
     if (REMAINING[INDEX] === 0) lockCurrent();
   }, 1000);
+}
+
+function paintExamTimer() {
+  if (EXAM_LEFT === null) return;
+  const box = $('#examTimer');
+  box.hidden = false;
+  box.className = `timer ${EXAM_LEFT <= 60 ? 'critical' : EXAM_LEFT <= 300 ? 'low' : ''}`;
+  $('#examTimerValue').textContent = fmtCountdown(EXAM_LEFT);
+}
+
+/**
+ * The exam's end time has arrived. Save whatever is on screen, submit, and show
+ * the score — the same as pressing Submit, without asking, because the decision
+ * is no longer the student's to make.
+ *
+ * The server closes the paper on its own clock too, so this is the courteous
+ * version of something that happens either way.
+ */
+async function finishOnTime() {
+  if (CLOSING) return;
+  CLOSING = true;
+  clearInterval(TICKER);
+  toast('Time is up — submitting your exam.', 'warn');
+  try { await saveAnswer(false); } catch { /* the answer may already be shut */ }
+  await submitPaper({ automatic: true });
 }
 
 function paintTimer() {
@@ -516,6 +589,12 @@ async function saveAnswer(lock) {
       paintTimer();
     }
   } catch (err) {
+    if (err.data && err.data.examOver) {
+      // The server shut the whole paper while we were writing.
+      SAVING = false;
+      await showFinishedPaper();
+      return;
+    }
     if (err.status === 409 && err.data && err.data.answer) {
       // Too late. Show what the server kept, not what we tried to send.
       q.locked = true;
@@ -528,6 +607,29 @@ async function saveAnswer(lock) {
     }
   } finally {
     SAVING = false;
+  }
+}
+
+/**
+ * The paper was closed and marked by the server — because the finish time
+ * passed while this browser was asleep, offline, or simply slow. Show the
+ * result rather than leaving a dead question on screen.
+ */
+async function showFinishedPaper() {
+  if (CLOSING) return;
+  CLOSING = true;
+  clearInterval(TICKER);
+  EXAM_LEFT = 0;
+  paintExamTimer();
+  try {
+    const res = await api('/api/student/exam/submit', {
+      method: 'POST', body: { attemptId: PAPER.attempt.id },
+    });
+    showScorePopup(res.totals, res.results, { automatic: true });
+  } catch (err) {
+    toast(err.message, 'error');
+    await loadExamList();
+    showExamScreen('list');
   }
 }
 
@@ -545,11 +647,7 @@ $('#submitExam').addEventListener('click', async () => {
   btn.textContent = 'Marking…';
   try {
     await saveAnswer(false);
-    const res = await api('/api/student/exam/submit', {
-      method: 'POST', body: { attemptId: PAPER.attempt.id },
-    });
-    clearInterval(TICKER);
-    showScorePopup(res.totals, res.results);
+    await submitPaper({ automatic: false });
   } catch (err) {
     toast(err.message, 'error');
     btn.disabled = false;
@@ -557,10 +655,22 @@ $('#submitExam').addEventListener('click', async () => {
   }
 });
 
+/** Send the paper for marking and show the result. */
+async function submitPaper({ automatic }) {
+  const res = await api('/api/student/exam/submit', {
+    method: 'POST', body: { attemptId: PAPER.attempt.id },
+  });
+  clearInterval(TICKER);
+  showScorePopup(res.totals, res.results, { automatic });
+}
+
 /* ----------------------------------------------------------- score popup */
 
-function showScorePopup(totals, results) {
-  const passed = totals.percent >= 40;
+function showScorePopup(totals, results, { automatic = false } = {}) {
+  // A pass mark set by the teacher decides this. Without one there is no pass
+  // or fail to declare, so the old 40% only tints the ring.
+  const graded = totals.passed !== null && totals.passed !== undefined;
+  const passed = graded ? totals.passed : totals.percent >= 40;
   const ring = 264;   // 2πr for r=42
   const dash = (ring * Math.min(totals.percent, 100)) / 100;
 
@@ -580,10 +690,17 @@ function showScorePopup(totals, results) {
         </div>
       </div>
 
-      <h2 class="score-title">${passed ? 'Well done!' : 'Exam submitted'}</h2>
-      <p class="score-sub">${passed
-        ? 'You have passed this exam.'
-        : 'Your teacher can go through the answers with you.'}</p>
+      <h2 class="score-title">${graded
+        ? (passed ? 'Passed' : 'Not passed')
+        : 'Exam submitted'}</h2>
+      <p class="score-sub">
+        ${automatic ? 'Time ran out, so your paper was submitted and marked. ' : ''}
+        ${graded
+          ? (passed
+            ? `You needed ${totals.passMarks} of ${totals.totalMarks} and scored ${totals.score}.`
+            : `The pass mark was ${totals.passMarks} of ${totals.totalMarks}. Your teacher can go through the answers with you.`)
+          : 'Your teacher can go through the answers with you.'}
+      </p>
 
       <div class="score-grid">
         <div class="score-tile good">
@@ -629,11 +746,13 @@ function showScorePopup(totals, results) {
 
 async function showResult(attemptId) {
   try {
-    const { attempt, results } = await api(`/api/student/exam/result?attemptId=${encodeURIComponent(attemptId)}`);
+    const res = await api(`/api/student/exam/result?attemptId=${encodeURIComponent(attemptId)}`);
+    const { attempt, results } = res;
     renderMarkedPaper({
       score: attempt.score, totalMarks: attempt.totalMarks, percent: attempt.percent,
       correctCount: attempt.correctCount, wrongCount: attempt.wrongCount,
       unansweredCount: attempt.unansweredCount, questionCount: attempt.questionCount,
+      passMarks: res.passMarks, passed: res.passed,
     }, results);
   } catch (err) {
     toast(err.message, 'error');
@@ -647,8 +766,11 @@ function renderMarkedPaper(totals, results) {
     <div class="modal" role="dialog" aria-modal="true" aria-label="Your marked paper">
       <header>
         <h2>Your marked paper</h2>
-        <span class="pill ${totals.percent >= 40 ? 'present' : 'absent'}">
-          ${totals.score}/${totals.totalMarks} · ${totals.percent}%
+        <span class="pill ${(totals.passed === null || totals.passed === undefined
+          ? totals.percent >= 40 : totals.passed) ? 'present' : 'absent'}">
+          ${totals.score}/${totals.totalMarks} · ${totals.percent}%${
+            totals.passed === null || totals.passed === undefined
+              ? '' : ` · ${totals.passed ? 'Pass' : 'Fail'}`}
         </span>
         <div class="spacer" style="margin-left:auto"></div>
         <button class="iconbtn" data-close>✕</button>
@@ -732,7 +854,7 @@ async function loadExamHistory() {
           <thead><tr>
             <th>Exam</th><th>Date</th><th class="tnum">Questions</th>
             <th class="tnum">Correct</th><th class="tnum">Wrong</th><th class="tnum">Unanswered</th>
-            <th class="tnum">Score</th><th></th>
+            <th class="tnum">Score</th><th>Result</th><th></th>
           </tr></thead>
           <tbody>${attempts.map((a) => `
             <tr>
@@ -743,6 +865,9 @@ async function loadExamHistory() {
               <td class="tnum" style="color:var(--absent);font-weight:650">${a.wrongCount}</td>
               <td class="tnum">${a.unansweredCount}</td>
               <td>${meter(a.percent)}<span class="small muted">${a.score}/${a.totalMarks}</span></td>
+              <td>${passLabel(a) || `<span class="small muted">no pass mark</span>${
+                ''}`}${a.passMarks !== null && a.passMarks !== undefined
+                  ? `<br><span class="small muted">pass ${a.passMarks}</span>` : ''}</td>
               <td><button class="btn ghost sm" data-review="${a.id}">Review</button></td>
             </tr>`).join('')}
           </tbody>

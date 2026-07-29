@@ -81,9 +81,12 @@ function readBody(req, limit = 1e6) {
 const clientIp = (req) =>
   (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
 
-function fail(message, status = 400) {
+function fail(message, status = 400, extra = null) {
   const err = new Error(message);
   err.status = status;
+  // Merged into the JSON reply, so the browser can tell one 409 from another
+  // without reading the wording of the message.
+  if (extra) err.extra = extra;
   throw err;
 }
 
@@ -163,6 +166,43 @@ async function requireAdmin(req) {
 }
 
 /**
+ * Mark and close an attempt. Used both when a student presses Submit and when
+ * the clock runs out on them, so a paper is scored exactly one way.
+ */
+async function markAttempt(attempt, questions) {
+  const answers = await store.listAnswers(attempt.id);
+  const { results, totals } = grading.gradeAttempt(
+    questions, new Map(answers.map((a) => [a.questionId, a]))
+  );
+  for (const result of results) {
+    if (result.answerId) {
+      await store.gradeAnswer(result.answerId, {
+        isCorrect: result.isCorrect,
+        marksAwarded: result.marksAwarded,
+      });
+    }
+  }
+  const finished = await store.finishAttempt(attempt.id, totals);
+  return { attempt: finished, results, totals };
+}
+
+/**
+ * Close a paper whose finish time has passed.
+ *
+ * The exam ends when the teacher said it ends, whether or not the student's
+ * browser is still open — a closed laptop, a dead battery or a student who
+ * simply walks away must not leave the paper unmarked forever. Returns the
+ * attempt as it now stands.
+ */
+async function closeIfTimeIsUp(exam, attempt, questions) {
+  if (!attempt || attempt.status !== 'in_progress') return attempt;
+  const window = grading.examWindow(exam, questions.length, attempt);
+  if (!window.expired) return attempt;
+  const { attempt: finished } = await markAttempt(attempt, questions);
+  return finished;
+}
+
+/**
  * The checks every "student touches a question" route needs, in one place:
  * the attempt exists, it belongs to this student, it is still open, and the
  * question really is part of that exam.
@@ -177,6 +217,15 @@ async function requireAttemptQuestion(req) {
   if (attempt.status === 'submitted') fail('You have already submitted this exam.', 409);
 
   const questions = await store.listQuestions(attempt.examId);
+
+  // The paper may have shut since the browser last spoke to us. Marking it here
+  // means no answer can be recorded after the finish time, whatever the page
+  // still shows.
+  const closed = await closeIfTimeIsUp(attempt.exam, attempt, questions);
+  if (closed.status === 'submitted') {
+    fail('Time is up — this exam has been submitted and marked.', 409, { examOver: true });
+  }
+
   const question = questions.find((q) => q.id === body.questionId);
   if (!question) fail('That question is not in this exam.', 400);
 
@@ -477,7 +526,10 @@ const routes = {
       if (exam.audience === 'selected' && !mine.has(exam.id)) continue;
 
       const questions = await store.listQuestions(exam.id);
-      const attempt = await store.findAttempt({ examId: exam.id, userId: user.id });
+      let attempt = await store.findAttempt({ examId: exam.id, userId: user.id });
+      // If the finish time passed while they were away, mark it now so the list
+      // shows a score rather than an exam that never ended.
+      attempt = await closeIfTimeIsUp(exam, attempt, questions);
       const window = grading.examWindow(exam, questions.length, attempt);
       const request = makeupByExam.get(exam.id) || null;
 
@@ -501,6 +553,7 @@ const routes = {
             totalMarks: attempt.totalMarks, percent: attempt.percent,
             correctCount: attempt.correctCount, wrongCount: attempt.wrongCount,
             unansweredCount: attempt.unansweredCount, submittedAt: attempt.submittedAt,
+            ...grading.passOutcome(exam, attempt.score),
           }
           : null,
       });
@@ -524,6 +577,7 @@ const routes = {
 
     const questions = await store.listQuestions(exam.id);
     let attempt = await store.findAttempt({ examId: exam.id, userId: user.id });
+    attempt = await closeIfTimeIsUp(exam, attempt, questions);
 
     const window = grading.examWindow(exam, questions.length, attempt);
     if (!window.canStart) fail(window.message, 409);
@@ -563,7 +617,7 @@ const routes = {
   /* The student has reached a question — the server stamps the clock and says
      how long is left. Calling it again never restarts the countdown. */
   'POST /api/student/exam/open': async (req, res) => {
-    const { attempt, question } = await requireAttemptQuestion(req);
+    const { attempt, question, questions } = await requireAttemptQuestion(req);
 
     const row = await store.openQuestion(attempt.id, question.id);
     const clock = grading.questionTimeLeft(question, row.openedAt);
@@ -574,6 +628,10 @@ const routes = {
       remaining: clock.remaining,
       total: clock.total,
       locked: row.locked || clock.expired,
+      // Lets the browser correct its whole-paper countdown against our clock.
+      examSecondsLeft: attempt.exam && attempt.exam.endTime
+        ? grading.examTimeLeft(attempt.exam, questions.length)
+        : null,
     });
   },
 
@@ -643,26 +701,19 @@ const routes = {
           score: attempt.score, totalMarks: attempt.totalMarks, percent: attempt.percent,
           correctCount: attempt.correctCount, wrongCount: attempt.wrongCount,
           unansweredCount: attempt.unansweredCount, questionCount: attempt.questionCount,
+          ...grading.passOutcome(attempt.exam, attempt.score),
         },
       });
     }
 
-    const answers = await store.listAnswers(attempt.id);
-    const { results, totals } = grading.gradeAttempt(
-      questions, new Map(answers.map((a) => [a.questionId, a]))
-    );
+    const { attempt: finished, results, totals } = await markAttempt(attempt, questions);
 
-    for (const result of results) {
-      if (result.answerId) {
-        await store.gradeAnswer(result.answerId, {
-          isCorrect: result.isCorrect,
-          marksAwarded: result.marksAwarded,
-        });
-      }
-    }
-    const finished = await store.finishAttempt(attempt.id, totals);
-
-    send(res, 201, { already: false, attempt: finished, results, totals });
+    send(res, 201, {
+      already: false,
+      attempt: finished,
+      results,
+      totals: { ...totals, ...grading.passOutcome(attempt.exam, totals.score) },
+    });
   },
 
   /* The full marked paper, once submitted. */
@@ -676,14 +727,22 @@ const routes = {
     const questions = await store.listQuestions(attempt.examId);
     const answers = await store.listAnswers(attempt.id);
     const { results } = grading.gradeAttempt(questions, new Map(answers.map((a) => [a.questionId, a])));
-    send(res, 200, { attempt, results });
+    send(res, 200, {
+      attempt,
+      results,
+      ...grading.passOutcome(attempt.exam, attempt.score),
+    });
   },
 
   /* Every exam this student has sat — feeds the Report tab. */
   'GET /api/student/exam/history': async (req, res) => {
     const user = await requireUser(req);
     const attempts = await store.listAttempts({ userId: user.id });
-    send(res, 200, { attempts: attempts.filter((a) => a.status === 'submitted') });
+    send(res, 200, {
+      attempts: attempts
+        .filter((a) => a.status === 'submitted')
+        .map((a) => ({ ...a, ...grading.passOutcome(a.exam, a.score) })),
+    });
   },
 
   /* Ask the teacher for a second chance at a paper that was missed.
@@ -978,6 +1037,14 @@ const routes = {
     const startTime = String(body.startTime || '').slice(0, 5);
     if (sched.toMinutes(startTime) === null) fail('Please pick a valid exam time.');
 
+    // Optional. Left blank, the paper still finishes when the per-question
+    // timers run out, which is how every exam worked before.
+    const endTime = String(body.endTime || '').slice(0, 5);
+    if (endTime && sched.toMinutes(endTime) === null) fail('Please pick a valid end time.');
+    if (endTime && sched.toMinutes(endTime) <= sched.toMinutes(startTime)) {
+      fail('The end time must be after the start time.');
+    }
+
     const totalQuestions = Number(body.totalQuestions);
     if (!Number.isInteger(totalQuestions) || totalQuestions < 1 || totalQuestions > 200) {
       fail('Total questions must be a whole number between 1 and 200.');
@@ -991,6 +1058,14 @@ const routes = {
       fail('Time per question must be between 5 and 3600 seconds.');
     }
     if (!['fill', 'mcq', 'both'].includes(body.questionMode)) fail('Pick a question style.');
+
+    // Optional. Left blank, the paper is scored without a pass or fail.
+    let passMarks = null;
+    if (body.passMarks !== undefined && body.passMarks !== null && String(body.passMarks).trim() !== '') {
+      passMarks = Number(body.passMarks);
+      if (!Number.isFinite(passMarks) || passMarks < 0) fail('Pass marks cannot be negative.');
+      if (passMarks > totalMarks) fail('Pass marks cannot be more than the total marks.');
+    }
 
     // A paper is either for the whole batch or for named students (a makeup).
     const audience = body.audience === 'selected' ? 'selected' : 'batch';
@@ -1007,8 +1082,10 @@ const routes = {
       title: cleanText(body.title, 'Exam title', { max: 120, required: false }),
       examDate,
       startTime,
+      endTime: endTime || null,
       totalQuestions,
       totalMarks,
+      passMarks,
       secondsPerQuestion,
       questionMode: body.questionMode,
       instructions: cleanText(body.instructions, 'Instructions', { max: 2000, required: false }),
@@ -1137,6 +1214,28 @@ const routes = {
     const changes = {};
     if (body.title !== undefined) changes.title = cleanText(body.title, 'Exam title', { max: 120, required: false });
     if (body.instructions !== undefined) changes.instructions = cleanText(body.instructions, 'Instructions', { max: 2000, required: false });
+
+    // A teacher can move the finish time or the pass mark after setting up.
+    if (body.endTime !== undefined) {
+      const endTime = String(body.endTime || '').slice(0, 5);
+      if (endTime) {
+        if (sched.toMinutes(endTime) === null) fail('Please pick a valid end time.');
+        if (sched.toMinutes(endTime) <= sched.toMinutes(exam.startTime)) {
+          fail('The end time must be after the start time.');
+        }
+      }
+      changes.endTime = endTime || null;
+    }
+    if (body.passMarks !== undefined) {
+      if (body.passMarks === null || String(body.passMarks).trim() === '') {
+        changes.passMarks = null;
+      } else {
+        const marks = Number(body.passMarks);
+        if (!Number.isFinite(marks) || marks < 0) fail('Pass marks cannot be negative.');
+        if (marks > exam.totalMarks) fail('Pass marks cannot be more than the total marks.');
+        changes.passMarks = marks;
+      }
+    }
     if (body.status !== undefined) {
       if (!['draft', 'published'].includes(body.status)) fail('Bad status.');
       if (body.status === 'published') {
@@ -1259,13 +1358,18 @@ const routes = {
     const exam = await store.getExam(url.searchParams.get('examId'));
     if (!exam) fail('Exam not found.', 404);
 
-    const [questions, attempts, batchStudents, makeups, participants] = await Promise.all([
+    const [questions, rawAttempts, batchStudents, makeups, participants] = await Promise.all([
       store.listQuestions(exam.id),
       store.listAttempts({ examId: exam.id }),
       store.listUsers({ role: 'student', batchId: exam.batchId }),
       store.listMakeups({ examId: exam.id }),
       exam.audience === 'selected' ? store.listParticipants(exam.id) : Promise.resolve(null),
     ]);
+
+    // Anyone still "in progress" after the finish time is marked now, so the
+    // teacher sees a score rather than a paper that never came back.
+    const attempts = [];
+    for (const a of rawAttempts) attempts.push(await closeIfTimeIsUp(exam, a, questions));
 
     // A restricted paper is only "missed" by the students it was given to.
     const named = participants ? new Set(participants.map((p) => p.userId)) : null;
@@ -1297,6 +1401,9 @@ const routes = {
         wrongCount: attempt ? attempt.wrongCount : 0,
         unansweredCount: attempt ? attempt.unansweredCount : 0,
         submittedAt: attempt ? attempt.submittedAt : null,
+        passed: attempt && attempt.status === 'submitted'
+          ? grading.passOutcome(exam, attempt.score).passed
+          : null,
       };
     });
 
@@ -1320,7 +1427,12 @@ const routes = {
           : 0,
         highest: scores.length ? scores[scores.length - 1] : 0,
         lowest: scores.length ? scores[0] : 0,
-        passed: done.filter((r) => r.percent >= 40).length,
+        passMarks: grading.passMarkOf(exam),
+        // Against the teacher's pass mark when there is one; otherwise the old
+        // 40% rule of thumb, so this number never silently disappears.
+        passed: grading.passMarkOf(exam) === null
+          ? done.filter((r) => r.percent >= 40).length
+          : done.filter((r) => r.passed).length,
       },
     });
   },
@@ -1342,6 +1454,7 @@ const routes = {
           unansweredCount: a.unansweredCount,
           questionCount: a.questionCount,
           submittedAt: a.submittedAt,
+          ...grading.passOutcome(a.exam, a.score),
           student: a.student,
           exam: a.exam ? {
             id: a.exam.id, title: a.exam.title, examDate: a.exam.examDate,
@@ -1682,7 +1795,7 @@ async function requestListener(req, res) {
     } catch (err) {
       const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
       if (status >= 500) console.error(`  ! ${req.method} ${url.pathname} —`, err.message);
-      send(res, status, { error: err.message || 'Something went wrong.' });
+      send(res, status, { error: err.message || 'Something went wrong.', ...(err.extra || {}) });
     }
     return;
   }

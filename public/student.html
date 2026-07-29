@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>My Attendance — Learner's Byte</title>
-<link rel="stylesheet" href="/styles.css?v=5" />
+<link rel="stylesheet" href="/styles.css?v=7" />
 <link rel="icon" href="/logo-mark.svg" />
 </head>
 <body>
@@ -161,8 +161,12 @@
           <span class="small muted" id="runnerProgress">—</span>
         </div>
         <div class="spacer"></div>
+        <div class="timer" id="examTimer" hidden>
+          <span class="timer-label">Exam ends in</span>
+          <b id="examTimerValue">--:--</b>
+        </div>
         <div class="timer" id="questionTimer">
-          <span class="timer-label">Time left</span>
+          <span class="timer-label">This question</span>
           <b id="timerValue">--:--</b>
         </div>
       </div>
@@ -310,9 +314,9 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="/common.js?v=5"></script>
-<script src="/charts.js?v=5"></script>
-<script src="/exam.js?v=5"></script>
-<script src="/student.js?v=5"></script>
+<script src="/common.js?v=7"></script>
+<script src="/charts.js?v=7"></script>
+<script src="/exam.js?v=7"></script>
+<script src="/student.js?v=7"></script>
 </body>
 </html>

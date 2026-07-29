@@ -27,31 +27,60 @@ function examStartsAt(exam) {
   return zone.instantOf(exam.examDate, exam.startTime || '00:00');
 }
 
+/**
+ * When the paper shuts.
+ *
+ * A teacher-set finish time wins: "this exam ends at 11:00" is a promise to the
+ * class and must not be undone by arithmetic on the per-question timer. With no
+ * finish time set, the old rule stands — questions × seconds from the start.
+ */
 function examEndsAt(exam, questionCount) {
+  if (exam.endTime) return zone.instantOf(exam.examDate, exam.endTime);
   return new Date(examStartsAt(exam).getTime() + examDurationSeconds(exam, questionCount) * 1000);
+}
+
+/** Seconds until the paper shuts. 0 once it has. */
+function examTimeLeft(exam, questionCount, now = new Date()) {
+  return Math.max(0, Math.ceil((examEndsAt(exam, questionCount).getTime() - now.getTime()) / 1000));
 }
 
 /**
  * Can this student press Start right now?
  * phase: not-published | upcoming | open | closed | completed | in-progress
+ *
+ * `expired` says the paper is over for a student who still has it open — the
+ * caller must submit and mark it rather than let them keep typing.
  */
 function examWindow(exam, questionCount, attempt = null, now = new Date()) {
   const startsAt = examStartsAt(exam);
   const endsAt = examEndsAt(exam, questionCount);
-  const lastStart = new Date(endsAt.getTime() + LATE_START_GRACE_MINUTES * 60000);
+  const fixedEnd = Boolean(exam.endTime);
+
+  // A late start is a kindness for a paper whose finish was only ever implied.
+  // Once a teacher names the finish time, that time is the finish time.
+  const lastStart = fixedEnd
+    ? endsAt
+    : new Date(endsAt.getTime() + LATE_START_GRACE_MINUTES * 60000);
 
   const base = {
     startsAt: startsAt.toISOString(),
     endsAt: endsAt.toISOString(),
+    fixedEnd,
     durationSeconds: examDurationSeconds(exam, questionCount),
+    secondsLeft: Math.max(0, Math.ceil((endsAt.getTime() - now.getTime()) / 1000)),
+    passMarks: passMarkOf(exam),
   };
 
   if (attempt && attempt.status === 'submitted') {
-    return { ...base, phase: 'completed', canStart: false,
+    return { ...base, phase: 'completed', canStart: false, expired: false,
       message: 'You have already submitted this exam.' };
   }
   if (attempt && attempt.status === 'in_progress') {
-    return { ...base, phase: 'in-progress', canStart: true,
+    if (now > endsAt) {
+      return { ...base, phase: 'closed', canStart: false, expired: true,
+        message: 'Time is up — this exam has been submitted for you.' };
+    }
+    return { ...base, phase: 'in-progress', canStart: true, expired: false,
       message: 'You have this exam open — continue where you left off.' };
   }
   if (exam.status !== 'published') {
@@ -67,10 +96,32 @@ function examWindow(exam, questionCount, attempt = null, now = new Date()) {
       message: `This exam opens on ${zone.formatDateTime(startsAt)}.` };
   }
   if (now > lastStart) {
-    return { ...base, phase: 'closed', canStart: false,
+    return { ...base, phase: 'closed', canStart: false, expired: false,
       message: 'This exam has closed.' };
   }
-  return { ...base, phase: 'open', canStart: true, message: 'You can start now.' };
+  return { ...base, phase: 'open', canStart: true, expired: false,
+    message: 'You can start now.' };
+}
+
+/* ------------------------------------------------------------ pass mark -- */
+
+/** The pass mark, or null when the teacher did not set one. */
+function passMarkOf(exam) {
+  const raw = exam ? exam.passMarks : null;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const mark = Number(raw);
+  return Number.isFinite(mark) ? mark : null;
+}
+
+/**
+ * Did this score pass?
+ * `passed` is null — not false — when no pass mark was set, so "no pass mark"
+ * is never mistaken for "failed".
+ */
+function passOutcome(exam, score) {
+  const passMarks = passMarkOf(exam);
+  if (passMarks === null) return { passMarks: null, passed: null };
+  return { passMarks, passed: Number(score) >= passMarks };
 }
 
 /* -------------------------------------------------- per-question clock -- */
@@ -199,7 +250,8 @@ const forStudent = (question) => ({
 });
 
 module.exports = {
-  examStartsAt, examEndsAt, examWindow, examDurationSeconds,
+  examStartsAt, examEndsAt, examWindow, examDurationSeconds, examTimeLeft,
+  passMarkOf, passOutcome,
   isAnswerCorrect, gradeAttempt, forStudent,
   questionTimeLeft,
   LATE_START_GRACE_MINUTES, DEADLINE_SLACK_SECONDS,
