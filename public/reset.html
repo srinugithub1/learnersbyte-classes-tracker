@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Learner's Byte â€” Set a new password</title>
+<title>Learner's Byte — Set a new password</title>
 <link rel="stylesheet" href="/styles.css?v=4" />
 <link rel="icon" href="/logo-mark.svg" />
 </head>
@@ -52,7 +52,7 @@
   const form = $('#resetForm');
 
   function showAlert(kind, html) {
-    const icon = kind === 'error' ? 'âš ' : kind === 'success' ? 'âœ“' : 'â„¹';
+    const icon = kind === 'error' ? '⚠' : kind === 'success' ? '✓' : 'ℹ';
     $('#alertSlot').innerHTML =
       `<div class="alert ${kind}"><span class="ico" aria-hidden="true">${icon}</span><span>${html}</span></div>`;
   }
@@ -78,7 +78,7 @@
     btn.disabled = true;
     try {
       await api('/api/auth/reset', { method: 'POST', body: { ...data, token } });
-      showAlert('success', 'Password updated. Taking you to the login pageâ€¦');
+      showAlert('success', 'Password updated. Taking you to the login page…');
       form.classList.add('hidden');
       setTimeout(() => { location.href = '/'; }, 1800);
     } catch (err) {

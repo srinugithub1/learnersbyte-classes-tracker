@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Learner's Byte â€” Sign in</title>
+<title>Learner's Byte — Sign in</title>
 <link rel="stylesheet" href="/styles.css?v=4" />
 <link rel="icon" href="/logo-mark.svg" />
 </head>
@@ -75,7 +75,7 @@
   <!-- ----------------------------------------------------------- FORGOT -->
   <form id="forgotForm" class="hidden" novalidate>
     <p class="alert info">
-      <span class="ico" aria-hidden="true">â„¹</span>
+      <span class="ico" aria-hidden="true">ℹ</span>
       <span>Enter your email and a reset link will be created. Your teacher can see
       pending requests in the Teacher portal and will pass the link to you.</span>
     </p>
@@ -140,7 +140,7 @@
   });
 
   function showAlert(kind, html) {
-    const icon = kind === 'error' ? 'âš ' : kind === 'success' ? 'âœ“' : 'â„¹';
+    const icon = kind === 'error' ? '⚠' : kind === 'success' ? '✓' : 'ℹ';
     $('#alertSlot').innerHTML =
       `<div class="alert ${kind}"><span class="ico" aria-hidden="true">${icon}</span><span>${html}</span></div>`;
   }
@@ -154,7 +154,7 @@
       const btn = form.querySelector('button[type="submit"]');
       const original = btn.textContent;
       btn.disabled = true;
-      btn.textContent = 'Please waitâ€¦';
+      btn.textContent = 'Please wait…';
       $('#alertSlot').innerHTML = '';
       try {
         await handler(values(form), form);
