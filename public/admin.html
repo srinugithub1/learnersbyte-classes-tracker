@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teacher Portal — Learner's Byte</title>
-<link rel="stylesheet" href="/styles.css" />
+<title>Teacher Portal â€” Learner's Byte</title>
+<link rel="stylesheet" href="/styles.css?v=4" />
 <link rel="icon" href="/logo-mark.svg" />
 </head>
 <body>
@@ -38,11 +38,11 @@
   </nav>
 
   <div class="userchip">
-    <div class="who"><b id="chipName">—</b><span>Administrator</span></div>
-    <div class="avatar" id="chipAvatar">—</div>
+    <div class="who"><b id="chipName">â€”</b><span>Administrator</span></div>
+    <div class="avatar" id="chipAvatar">â€”</div>
     <a class="iconbtn" href="/guide.html" target="_blank" title="User guide">?</a>
-    <button class="iconbtn" data-theme-toggle title="Switch light / dark">◐</button>
-    <button class="iconbtn" id="logoutBtn" title="Log out">⏻</button>
+    <button class="iconbtn" data-theme-toggle title="Switch light / dark">â—</button>
+    <button class="iconbtn" id="logoutBtn" title="Log out">â»</button>
   </div>
 </header>
 
@@ -84,7 +84,7 @@
 
     <div class="card">
       <header>
-        <div><h2>Today's roll call</h2><p id="dashDate">—</p></div>
+        <div><h2>Today's roll call</h2><p id="dashDate">â€”</p></div>
         <div class="spacer"></div>
         <label class="field" style="margin:0">
           <input type="search" id="dashSearch" placeholder="Search name, email or reg. no." />
@@ -109,7 +109,7 @@
     <div class="filterbar">
       <div>
         <h2 style="margin-bottom:4px">Batches</h2>
-        <p class="small muted">You set the class time and days here. Students only pick a batch —
+        <p class="small muted">You set the class time and days here. Students only pick a batch â€”
           they cannot change any of this.</p>
       </div>
       <button class="btn" id="addBatchBtn" style="margin-left:auto">+ New batch</button>
@@ -136,11 +136,11 @@
       <p class="small" style="color:var(--ink-2);line-height:1.7">
         The button opens <strong>30 minutes before</strong> a batch's start time.
         Marking within <strong>15 minutes</strong> of the start is
-        <span class="pill present"><span class="ico" aria-hidden="true">✓</span>Present</span>;
+        <span class="pill present"><span class="ico" aria-hidden="true">âœ“</span>Present</span>;
         after that it is
         <span class="pill late"><span class="ico" aria-hidden="true">!</span>Late</span>;
         once the class end time passes the button closes and the day counts as
-        <span class="pill absent"><span class="ico" aria-hidden="true">✕</span>Absent</span>.
+        <span class="pill absent"><span class="ico" aria-hidden="true">âœ•</span>Absent</span>.
         Only that batch's class days are counted, and only from the day each student joined.
       </p>
     </div>
@@ -220,7 +220,7 @@
           </label>
           <label class="field grow">
             <span>Exam title</span>
-            <input type="text" name="title" placeholder="e.g. Unit Test 1 — Algebra" maxlength="120" />
+            <input type="text" name="title" placeholder="e.g. Unit Test 1 â€” Algebra" maxlength="120" />
           </label>
         </div>
 
@@ -285,27 +285,27 @@
         </div>
 
         <p class="small muted" id="examSummaryHint"></p>
-        <button class="btn" type="submit">Continue →</button>
+        <button class="btn" type="submit">Continue â†’</button>
       </form>
     </div>
 
     <!-- ---- step 2: how to build the paper ---- -->
     <div class="card hidden" id="examStep2">
       <header>
-        <div><h2>Question paper</h2><p id="examStep2Sub">—</p></div>
+        <div><h2>Question paper</h2><p id="examStep2Sub">â€”</p></div>
         <div class="spacer"></div>
-        <button class="btn ghost sm" id="examBack1">← Change details</button>
+        <button class="btn ghost sm" id="examBack1">â† Change details</button>
       </header>
 
       <div class="segmented" role="tablist" id="paperTabs">
-        <button role="tab" aria-selected="true"  data-paper="manual">✎ Create paper manually</button>
-        <button role="tab" aria-selected="false" data-paper="upload">⭱ Upload paper (PDF / Word)</button>
+        <button role="tab" aria-selected="true"  data-paper="manual">âœŽ Create paper manually</button>
+        <button role="tab" aria-selected="false" data-paper="upload">â­± Upload paper (PDF / Word)</button>
       </div>
 
       <!-- manual -->
       <div id="paperManual">
         <div class="alert info">
-          <span class="ico" aria-hidden="true">ℹ</span>
+          <span class="ico" aria-hidden="true">â„¹</span>
           <span id="manualHint">Add each question and mark its correct answer.</span>
         </div>
         <div id="questionList"></div>
@@ -320,7 +320,7 @@
       <!-- upload -->
       <div id="paperUpload" hidden>
         <div class="alert info">
-          <span class="ico" aria-hidden="true">ℹ</span>
+          <span class="ico" aria-hidden="true">â„¹</span>
           <span>The file must contain the <strong>answers</strong> as well. Number each
           question <code>1.</code> <code>2.</code>, put choices on their own lines as
           <code>A)</code> <code>B)</code>, and write <code>Answer: B</code> under each one.
@@ -329,9 +329,9 @@
 
         <label class="dropzone" id="dropzone">
           <input type="file" id="examFile" accept=".pdf,.docx,.txt" hidden />
-          <span class="dz-icon" aria-hidden="true">⭱</span>
+          <span class="dz-icon" aria-hidden="true">â­±</span>
           <b>Choose a file or drop it here</b>
-          <span class="small muted">PDF, Word .docx or .txt — up to 12 MB</span>
+          <span class="small muted">PDF, Word .docx or .txt â€” up to 12 MB</span>
         </label>
 
         <div id="uploadResult"></div>
@@ -395,7 +395,7 @@
 
       <div class="card chart-card">
         <header>
-          <div><h2>Attendance by student</h2><p>Lowest first — who needs a nudge</p></div>
+          <div><h2>Attendance by student</h2><p>Lowest first â€” who needs a nudge</p></div>
           <div class="spacer"></div>
           <div class="viewtoggle" role="tablist" data-toggle="bars">
             <button role="tab" aria-selected="true" data-mode="chart">Chart</button>

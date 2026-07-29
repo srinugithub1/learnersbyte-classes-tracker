@@ -1066,8 +1066,8 @@ details.raw-text pre {
 tr.changed { background: var(--accent-soft); }
 tr.changed td { border-bottom-color: var(--accent-line); }
 
-/* A tab or button with `hidden` must actually disappear. The rules above give
-   these an explicit display, which otherwise beats the browser's [hidden]. */
-.navtabs button[hidden],
-.segmented button[hidden],
-.chips button[hidden] { display: none !important; }
+/* Anything with `hidden` must actually disappear. Every rule above that sets an
+   explicit display (flex on .alert, inline-flex on tab buttons, and so on) beats
+   the browser's built-in [hidden] rule, so state it once here for the whole
+   sheet rather than patching each offender as it turns up. */
+[hidden] { display: none !important; }
