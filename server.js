@@ -1425,10 +1425,12 @@ const routes = {
   },
 
   /**
-   * Every class day in a range where a student is NOT down as present or late —
-   * so either marked absent, or never recorded at all. That is exactly the list
-   * a teacher needs to fix, and leaving out the students who are already fine
-   * keeps a month of back-fill down to a readable size.
+   * Every class day in a range with NO attendance record at all — the student
+   * was never marked present, late or absent. That is the list a teacher needs
+   * to fill in; a day already decided, whatever the decision was, is not a gap.
+   *
+   * `includeAbsent=1` widens it to days recorded as absent, for a teacher who
+   * wants to revisit those too.
    */
   'GET /api/admin/attendance/gaps': async (req, res, url) => {
     await requireAdmin(req);
@@ -1445,6 +1447,9 @@ const routes = {
     const batchId = url.searchParams.get('batchId') || undefined;
     const batch = batchId ? await store.getBatch(batchId) : null;
     if (batchId && !batch) fail('Batch not found.', 404);
+
+    const includeAbsent = ['1', 'true', 'yes'].includes(
+      String(url.searchParams.get('includeAbsent') || '').toLowerCase());
 
     const [students, marks] = await Promise.all([
       store.listUsers({ role: 'student', batchId }),
@@ -1467,7 +1472,8 @@ const routes = {
         if (opened && date < opened) continue;
         if (!sched.isClassDay(student.batch, date)) continue;
         const status = seen.get(`${student.id}|${date}`) || null;
-        if (status === 'present' || status === 'late') continue;   // nothing to fix
+        // A day already decided is not a gap — only ones nobody touched.
+        if (status && !(includeAbsent && status === 'absent')) continue;
         total++;
         if (rows.length < LIMIT) {
           rows.push({
@@ -1488,7 +1494,7 @@ const routes = {
       : a.date.localeCompare(b.date)));
 
     send(res, 200, {
-      from, to, batch,
+      from, to, batch, includeAbsent,
       rows,
       total,
       truncated: total > rows.length,

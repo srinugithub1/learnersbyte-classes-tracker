@@ -133,13 +133,21 @@ function daysAgo(n) {
 
     res = await admin(`/api/admin/attendance/gaps?${range}`);
     const left = mine(res.data.rows);
-    ok('students now present or late drop off the list', left.length === 2, `got ${left.length}`);
-    ok('the one marked absent is still listed',
-      left.some((r) => r.student.id === beta && r.date === mid && r.status === 'absent'));
+    ok('only the untouched day is left', left.length === 1, `got ${left.length}`);
     ok('the day never recorded is still listed',
       left.some((r) => r.student.id === beta && r.date === to && r.status === null));
+    ok('a day marked absent is NOT a gap',
+      !left.some((r) => r.status === 'absent'));
     ok('a present student is gone from the list',
       !left.some((r) => r.student.id === alpha));
+
+    res = await admin(`/api/admin/attendance/gaps?${range}&includeAbsent=1`);
+    const wider = mine(res.data.rows);
+    ok('includeAbsent brings the absent day back', wider.length === 2, `got ${wider.length}`);
+    ok('and it carries its recorded status',
+      wider.some((r) => r.student.id === beta && r.date === mid && r.status === 'absent'));
+    ok('but never a present or late day',
+      !wider.some((r) => r.status === 'present' || r.status === 'late'));
 
     /* ------------------------------------------------- start date moves back */
     section('the report follows the back-fill');

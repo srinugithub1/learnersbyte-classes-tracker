@@ -1817,7 +1817,7 @@ $('#backfillToggle').addEventListener('click', async () => {
 });
 
 $('#backfillLoad').addEventListener('click', loadBackfill);
-for (const id of ['#backfillFrom', '#backfillTo', '#backfillBatch']) {
+for (const id of ['#backfillFrom', '#backfillTo', '#backfillBatch', '#backfillIncludeAbsent']) {
   $(id).addEventListener('change', () => { if (BACKFILL_ROWS.length) loadBackfill(); });
 }
 
@@ -1834,7 +1834,8 @@ async function loadBackfill() {
 
   try {
     const q = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-      + (batchId ? `&batchId=${encodeURIComponent(batchId)}` : '');
+      + (batchId ? `&batchId=${encodeURIComponent(batchId)}` : '')
+      + ($('#backfillIncludeAbsent').checked ? '&includeAbsent=1' : '');
     const data = await api(`/api/admin/attendance/gaps?${q}`);
     BACKFILL_ROWS = data.rows;
     renderBackfill(data);
@@ -1849,8 +1850,9 @@ function renderBackfill(data) {
   if (!data.rows.length) {
     $('#backfillResult').innerHTML = `
       <div class="alert success">
-        Nothing to fix — every student is down as present or late on every class
+        Nothing to fill in — every student already has a record on every class
         day between ${fmtDate(data.from)} and ${fmtDate(data.to)}.
+        ${data.includeAbsent ? '' : 'Days marked absent are not counted as missing.'}
       </div>`;
     return;
   }
@@ -1861,11 +1863,12 @@ function renderBackfill(data) {
 
   $('#backfillResult').innerHTML = `
     <div class="alert info">
-      <b>${data.rows.length} record${data.rows.length === 1 ? '' : 's'} to fix</b>
+      <b>${data.rows.length} record${data.rows.length === 1 ? '' : 's'} to fill in</b>
       — ${counts.students} student${counts.students === 1 ? '' : 's'}
       across ${counts.days} class day${counts.days === 1 ? '' : 's'}.
-      ${counts.missing} never recorded, ${counts.absent} marked absent.
-      Students already present or late are not listed.
+      ${data.includeAbsent
+        ? `${counts.missing} never recorded, ${counts.absent} marked absent.`
+        : 'Every one of these has no record at all — not present, late or absent.'}
     </div>
     ${data.truncated ? `
       <div class="alert warn">

@@ -977,6 +977,14 @@ details.raw-text pre {
   margin: 8px 0;
 }
 
+/* A single checkbox on its own line, sitting under a filter bar. */
+.checkline {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--ink-2);
+  cursor: pointer;
+}
+.checkline input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+
 /* Page turner under a long table. Empty when everything fits on one page, so
    it must not reserve space of its own. */
 .pager {

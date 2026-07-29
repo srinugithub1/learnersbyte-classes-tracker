@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Teacher Portal — Learner's Byte</title>
-<link rel="stylesheet" href="/styles.css?v=5" />
+<link rel="stylesheet" href="/styles.css?v=6" />
 <link rel="icon" href="/logo-mark.svg" />
 </head>
 <body>
@@ -59,7 +59,7 @@
       <header>
         <div>
           <h2>Fill in past attendance</h2>
-          <p>Lists only the students missing a present or late mark, over any range of dates.</p>
+          <p>Lists only the students with no record at all — not marked present, late or absent.</p>
         </div>
         <div class="spacer"></div>
         <button class="btn ghost sm" id="backfillToggle">Open</button>
@@ -79,8 +79,13 @@
             <span>Batch</span>
             <select id="backfillBatch"><option value="">All batches</option></select>
           </label>
-          <button class="btn" id="backfillLoad">Show absent students</button>
+          <button class="btn" id="backfillLoad">Show students</button>
         </div>
+
+        <label class="checkline" style="margin:-6px 0 14px">
+          <input type="checkbox" id="backfillIncludeAbsent" />
+          <span>Also show days already marked absent</span>
+        </label>
 
         <div id="backfillResult"></div>
       </div>
@@ -478,8 +483,8 @@
 <div id="modalSlot"></div>
 <div id="toast" class="toast"></div>
 
-<script src="/common.js?v=5"></script>
-<script src="/charts.js?v=5"></script>
-<script src="/admin.js?v=5"></script>
+<script src="/common.js?v=6"></script>
+<script src="/charts.js?v=6"></script>
+<script src="/admin.js?v=6"></script>
 </body>
 </html>
