@@ -42,6 +42,50 @@ const batchLabel = (s) => (s.batch
   ? `${esc(s.batch.name)}<br><span class="small muted">${esc(s.batch.course || '')}</span>`
   : '<span class="pill pending"><span class="ico" aria-hidden="true">○</span>No batch</span>');
 
+/* ---------------------------------------------------------------- paging */
+/* Long lists are cut into pages. The rows themselves are already in the
+   browser, so paging is pure slicing — no extra request per page. */
+
+const PAGE_SIZE = 25;
+
+function pageSlice(all, page, size = PAGE_SIZE) {
+  const pages = Math.max(1, Math.ceil(all.length / size));
+  const current = Math.min(Math.max(1, page), pages);
+  const start = (current - 1) * size;
+  return {
+    rows: all.slice(start, start + size),
+    page: current,
+    pages,
+    total: all.length,
+    first: all.length ? start + 1 : 0,
+    last: Math.min(start + size, all.length),
+  };
+}
+
+/** Renders the bar; returns '' when everything fits on one page. */
+function pagerHTML(slice) {
+  if (slice.pages <= 1) return '';
+  return `
+    <div class="pager">
+      <button type="button" class="btn ghost sm" data-page="prev"
+        ${slice.page === 1 ? 'disabled' : ''}>‹ Previous</button>
+      <span class="small muted">
+        ${slice.first}–${slice.last} of ${slice.total} · page ${slice.page} of ${slice.pages}
+      </span>
+      <button type="button" class="btn ghost sm" data-page="next"
+        ${slice.page === slice.pages ? 'disabled' : ''}>Next ›</button>
+    </div>`;
+}
+
+/** Wires the two buttons inside `root` to a handler taking the new page. */
+function wirePager(root, slice, go) {
+  $$('[data-page]', root).forEach((b) => {
+    b.addEventListener('click', () => {
+      go(b.dataset.page === 'next' ? slice.page + 1 : slice.page - 1);
+    });
+  });
+}
+
 /* ============================================================ DASHBOARD = */
 
 function rangeQuery(fromId = 'fromDate', toId = 'toDate') {
@@ -89,10 +133,19 @@ function renderDashboard() {
   renderTodayTable();
 }
 
+let TODAY_PAGE = 1;
+
 function renderTodayTable() {
   const term = ($('#dashSearch').value || '').trim().toLowerCase();
-  const rows = OVERVIEW.rows.filter((r) => !term
+  const matching = OVERVIEW.rows.filter((r) => !term
     || `${r.student.name} ${r.student.email} ${r.student.regNo} ${r.student.batchName}`.toLowerCase().includes(term));
+
+  const slice = pageSlice(matching, TODAY_PAGE);
+  TODAY_PAGE = slice.page;
+  const rows = slice.rows;
+
+  $('#todayPager').innerHTML = pagerHTML(slice);
+  wirePager($('#todayPager'), slice, (p) => { TODAY_PAGE = p; renderTodayTable(); });
 
   $('#todayTable tbody').innerHTML = rows.length ? rows.map((r) => `
     <tr>
@@ -132,7 +185,10 @@ function renderTodayTable() {
     });
   });
 }
-$('#dashSearch').addEventListener('input', () => { if (OVERVIEW) renderTodayTable(); });
+$('#dashSearch').addEventListener('input', () => {
+  TODAY_PAGE = 1;               // a new search starts at the top of the results
+  if (OVERVIEW) renderTodayTable();
+});
 
 /* pending password resets */
 async function loadResets() {
@@ -1730,13 +1786,21 @@ $('#logClear').addEventListener('click', () => {
 
 let BACKFILL_ROWS = [];
 let BACKFILL_SET = new Map();          // "userId|date" -> chosen status
+let BACKFILL_DATA = null;              // the last reply, so a page turn can redraw
+let BACKFILL_PAGE = 1;
 
 const backfillKey = (row) => `${row.student.id}|${row.date}`;
 
-$('#backfillToggle').addEventListener('click', () => {
+$('#backfillToggle').addEventListener('click', async () => {
   const body = $('#backfillBody');
   const open = body.classList.toggle('hidden');
   $('#backfillToggle').textContent = open ? 'Open' : 'Close';
+
+  // The batch list is fetched by the Batches tab. A teacher who opens this
+  // straight from Today has never been there, so the dropdown would hold
+  // nothing but "All batches".
+  if (!open && !BATCHES.length) await loadBatches();
+
   if (!open && !$('#backfillFrom').value) {
     // Default to the last week, ending yesterday — today is already covered by
     // the roll call above.
@@ -1766,6 +1830,7 @@ async function loadBackfill() {
   const batchId = $('#backfillBatch').value;
   $('#backfillResult').innerHTML = '<p class="small muted">Loading…</p>';
   BACKFILL_SET = new Map();
+  BACKFILL_PAGE = 1;
 
   try {
     const q = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
@@ -1780,6 +1845,7 @@ async function loadBackfill() {
 }
 
 function renderBackfill(data) {
+  BACKFILL_DATA = data;
   if (!data.rows.length) {
     $('#backfillResult').innerHTML = `
       <div class="alert success">
@@ -1790,6 +1856,8 @@ function renderBackfill(data) {
   }
 
   const { counts } = data;
+  const slice = pageSlice(data.rows, BACKFILL_PAGE);
+  BACKFILL_PAGE = slice.page;
 
   $('#backfillResult').innerHTML = `
     <div class="alert info">
@@ -1806,18 +1874,23 @@ function renderBackfill(data) {
       </div>` : ''}
 
     <div class="pick-toolbar">
+      <button class="btn" id="backfillSave" disabled>Save changes</button>
       <button type="button" class="btn ghost sm" data-all="present">Set all present</button>
       <button type="button" class="btn ghost sm" data-all="late">Set all late</button>
       <button type="button" class="btn ghost sm" data-all="absent">Set all absent</button>
       <button type="button" class="btn ghost sm" data-all="reset">Undo changes</button>
       <span class="small muted" id="backfillCount">nothing changed yet</span>
     </div>
+    <p class="small muted" style="margin:-6px 0 12px">
+      "Set all" covers every record found, not just this page. Your choices are
+      kept while you turn pages — Save writes them all in one go.
+    </p>
 
     <div class="table-wrap"><table>
       <thead><tr>
         <th>Date</th><th>Student</th><th>Batch</th><th>Recorded</th><th>Set to</th>
       </tr></thead>
-      <tbody>${data.rows.map((r) => `
+      <tbody>${slice.rows.map((r) => `
         <tr data-key="${esc(backfillKey(r))}">
           <td class="small">${fmtDate(r.date)}<br /><span class="muted">${esc(r.weekday)}</span></td>
           <td>${who(r.student)}</td>
@@ -1837,7 +1910,13 @@ function renderBackfill(data) {
       </tbody>
     </table></div>
 
-    <button class="btn" id="backfillSave" disabled>Save changes</button>`;
+    <div id="backfillPager">${pagerHTML(slice)}</div>`;
+
+  wirePager($('#backfillPager'), slice, (p) => {
+    BACKFILL_PAGE = p;
+    renderBackfill(data);                       // choices live in BACKFILL_SET
+    $('#backfillResult').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
 
   $$('#backfillResult [data-set]').forEach((b) => {
     b.addEventListener('click', () => {
@@ -1862,6 +1941,10 @@ function renderBackfill(data) {
   });
 
   $('#backfillSave').addEventListener('click', saveBackfill);
+
+  // A page turn redraws the table, so re-show what was already chosen.
+  $$('#backfillResult tbody tr').forEach(paintBackfillRow);
+  updateBackfillCount();
 }
 
 function paintBackfillRow(row) {

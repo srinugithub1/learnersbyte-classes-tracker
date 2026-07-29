@@ -977,6 +977,17 @@ details.raw-text pre {
   margin: 8px 0;
 }
 
+/* Page turner under a long table. Empty when everything fits on one page, so
+   it must not reserve space of its own. */
+.pager {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; flex-wrap: wrap;
+  padding: 12px 4px 2px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+.pager .small { text-align: center; }
+
 /* Scrolls rather than pushing the Continue button off the screen. */
 .pick-list {
   max-height: 260px; overflow-y: auto;
