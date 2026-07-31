@@ -23,6 +23,7 @@ const sched = require('./schedule');
 const parse = require('./parse');
 const grading = require('./grading');
 const zone = require('./zone');
+const sheet = require('./sheet');
 
 const PORT = process.env.PORT || 3000;
 
@@ -200,6 +201,456 @@ async function closeIfTimeIsUp(exam, attempt, questions) {
   if (!window.expired) return attempt;
   const { attempt: finished } = await markAttempt(attempt, questions);
   return finished;
+}
+
+/* ------------------------------------------------------- exam reporting -- */
+
+/**
+ * One exam, every student on it, ranked.
+ *
+ * Shared by the results dialog, the spreadsheet and the printable report, so
+ * all three always agree — a rank that differs between the screen and the PDF
+ * is worse than no rank at all.
+ */
+async function buildExamReport(examId) {
+  const exam = await store.getExam(examId);
+  if (!exam) fail('Exam not found.', 404);
+
+  const [questions, rawAttempts, batchStudents, makeups, participants] = await Promise.all([
+    store.listQuestions(exam.id),
+    store.listAttempts({ examId: exam.id }),
+    store.listUsers({ role: 'student', batchId: exam.batchId }),
+    store.listMakeups({ examId: exam.id }),
+    exam.audience === 'selected' ? store.listParticipants(exam.id) : Promise.resolve(null),
+  ]);
+
+  // Anyone still "in progress" after the finish time is marked now, so the
+  // teacher sees a score rather than a paper that never came back.
+  const attempts = [];
+  for (const a of rawAttempts) attempts.push(await closeIfTimeIsUp(exam, a, questions));
+
+  // A restricted paper is only "missed" by the students it was given to.
+  const named = participants ? new Set(participants.map((p) => p.userId)) : null;
+  const students = named ? batchStudents.filter((s) => named.has(s.id)) : batchStudents;
+
+  const byUser = new Map(attempts.map((a) => [a.userId, a]));
+  const askedBy = new Map(makeups.map((m) => [m.userId, m]));
+  const window = grading.examWindow(exam, questions.length);
+  const closed = window.phase === 'closed';
+
+  const rows = students.map((student) => {
+    const attempt = byUser.get(student.id) || null;
+    const request = askedBy.get(student.id) || null;
+    const submitted = attempt && attempt.status === 'submitted';
+    return {
+      student: {
+        id: student.id, regNo: student.regNo, name: student.name, email: student.email,
+      },
+      status: attempt ? attempt.status : 'not-started',
+      // Only meaningful once the paper has shut.
+      missed: closed && !attempt,
+      makeupStatus: request ? request.status : null,
+      makeupId: request ? request.id : null,
+      makeupReason: request ? request.reason : '',
+      attemptId: attempt ? attempt.id : null,
+      score: attempt ? attempt.score : 0,
+      totalMarks: attempt ? attempt.totalMarks : 0,
+      percent: attempt ? attempt.percent : 0,
+      correctCount: attempt ? attempt.correctCount : 0,
+      wrongCount: attempt ? attempt.wrongCount : 0,
+      unansweredCount: attempt ? attempt.unansweredCount : 0,
+      startedAt: attempt ? attempt.startedAt : null,
+      submittedAt: attempt ? attempt.submittedAt : null,
+      minutesTaken: submitted && attempt.startedAt && attempt.submittedAt
+        ? Math.max(0, Math.round(
+          (new Date(attempt.submittedAt) - new Date(attempt.startedAt)) / 60000 * 10) / 10)
+        : null,
+      passed: submitted ? grading.passOutcome(exam, attempt.score).passed : null,
+      rank: null,
+      outOf: 0,
+    };
+  });
+
+  // Rank the submitted papers, highest score first. Equal scores share a rank
+  // and the next rank skips accordingly — two firsts, then third, never a
+  // second that nobody holds.
+  const done = rows.filter((r) => r.status === 'submitted');
+  done.sort((a, b) => b.score - a.score || a.student.name.localeCompare(b.student.name));
+  let rank = 0;
+  let seen = 0;
+  let previous = null;
+  for (const row of done) {
+    seen++;
+    if (previous === null || row.score !== previous) rank = seen;
+    previous = row.score;
+    row.rank = rank;
+    row.outOf = done.length;
+  }
+
+  const totalMarks = Math.round(questions.reduce((s, q) => s + q.marks, 0) * 100) / 100;
+  const percents = done.map((r) => r.percent).sort((a, b) => a - b);
+  const middle = percents.length
+    ? (percents.length % 2
+      ? percents[(percents.length - 1) / 2]
+      : Math.round(((percents[percents.length / 2 - 1] + percents[percents.length / 2]) / 2) * 10) / 10)
+    : 0;
+  const passMarks = grading.passMarkOf(exam);
+
+  return {
+    exam: { ...exam, questionCount: questions.length, marksTotal: totalMarks },
+    // Ranked students first, then everyone who did not sit it.
+    rows: [
+      ...done,
+      ...rows.filter((r) => r.status !== 'submitted')
+        .sort((a, b) => a.student.name.localeCompare(b.student.name)),
+    ],
+    summary: {
+      students: rows.length,
+      submitted: done.length,
+      inProgress: rows.filter((r) => r.status === 'in_progress').length,
+      notStarted: rows.filter((r) => r.status === 'not-started').length,
+      missed: rows.filter((r) => r.missed).length,
+      awaitingDecision: rows.filter((r) => r.makeupStatus === 'pending').length,
+      closed,
+      average: done.length
+        ? Math.round((done.reduce((s, r) => s + r.percent, 0) / done.length) * 10) / 10
+        : 0,
+      median: middle,
+      highest: percents.length ? percents[percents.length - 1] : 0,
+      lowest: percents.length ? percents[0] : 0,
+      passMarks,
+      // Against the teacher's pass mark when there is one; otherwise the old
+      // 40% rule of thumb, so this number never silently disappears.
+      passed: passMarks === null
+        ? done.filter((r) => r.percent >= 40).length
+        : done.filter((r) => r.passed).length,
+      passRule: passMarks === null ? '40% or above (no pass mark set)' : `${passMarks} marks or above`,
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
+/* --------------------------------------------------- report, as a file -- */
+
+const STATUS_WORD = {
+  submitted: 'Submitted',
+  in_progress: 'Started, not submitted',
+  'not-started': 'Not started',
+};
+
+/** How a row reads in a report: one plain-English status, not four columns. */
+function rowStatus(row) {
+  if (row.status === 'submitted') return 'Submitted';
+  if (row.status === 'in_progress') return 'Started, not submitted';
+  if (row.missed) return 'Missed';
+  return STATUS_WORD[row.status] || row.status;
+}
+
+const MAKEUP_WORD = {
+  pending: 'Asked for a makeup',
+  approved: 'Makeup approved',
+  rejected: 'Makeup declined',
+};
+
+/** A filename a teacher can find again: the paper, the date, the format. */
+function reportFilename(exam, extension) {
+  const title = String(exam.title || 'exam')
+    .replace(/[^A-Za-z0-9 _-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60) || 'exam';
+  return `${title.replace(/ /g, '-')}-results-${exam.examDate}.${extension}`;
+}
+
+const verdict = (row) => {
+  if (row.status !== 'submitted') return '—';
+  if (row.passed === null) return 'Not graded';
+  return row.passed ? 'Pass' : 'Fail';
+};
+
+const localStamp = (iso) => (iso ? zone.formatDateTime(new Date(iso)) : '');
+
+/** The workbook: a summary sheet a head of centre can read, then the full list. */
+function examReportSheets(report) {
+  const { exam, rows, summary } = report;
+  const ranked = rows.filter((r) => r.status === 'submitted');
+
+  const overview = {
+    name: 'Summary',
+    columns: [{ width: 26 }, { width: 42 }],
+    rows: [
+      { title: 'Exam results' },
+      'blank',
+      ['Exam', exam.title || 'Untitled exam'],
+      ['Batch', exam.batch ? exam.batch.name : ''],
+      ['Course', exam.batch ? exam.batch.course || '' : ''],
+      ['Date', exam.examDate],
+      ['Time', `${exam.startTime}${exam.endTime ? ` to ${exam.endTime}` : ''}`],
+      ['Questions', exam.questionCount],
+      ['Total marks', exam.marksTotal],
+      ['Pass marks', summary.passMarks === null ? 'Not set' : summary.passMarks],
+      ['Paper for', exam.audience === 'selected' ? 'Selected students (makeup)' : 'Whole batch'],
+      'blank',
+      { title: 'Who sat it' },
+      ['Students on this paper', summary.students],
+      ['Submitted', summary.submitted],
+      ['Started but not submitted', summary.inProgress],
+      ['Not started', summary.notStarted],
+      ['Missed', summary.missed],
+      ['Makeup requests waiting', summary.awaitingDecision],
+      'blank',
+      { title: 'How they did' },
+      ['Passed', summary.passed],
+      ['Did not pass', Math.max(0, summary.submitted - summary.passed)],
+      ['Pass rule', summary.passRule],
+      ['Average', `${summary.average}%`],
+      ['Median', `${summary.median}%`],
+      ['Highest', `${summary.highest}%`],
+      ['Lowest', `${summary.lowest}%`],
+      'blank',
+      ['Report generated', localStamp(summary.generatedAt)],
+      ['Generated by', 'Learner\'s Byte · in association with Udayan Care'],
+    ],
+  };
+
+  const columns = [
+    { header: 'Rank', width: 7 },
+    { header: 'Reg. No.', width: 12 },
+    { header: 'Student', width: 26 },
+    { header: 'Email', width: 30 },
+    { header: 'Status', width: 22 },
+    { header: 'Score', width: 8 },
+    { header: 'Out of', width: 8 },
+    { header: 'Percent', width: 9 },
+    { header: 'Result', width: 10 },
+    { header: 'Correct', width: 9 },
+    { header: 'Wrong', width: 8 },
+    { header: 'Unanswered', width: 12 },
+    { header: 'Minutes taken', width: 14 },
+    { header: 'Submitted at', width: 22 },
+    { header: 'Makeup', width: 20 },
+  ];
+
+  const results = {
+    name: 'Results',
+    freezeHeader: true,
+    columns,
+    rows: [
+      { header: columns.map((c) => c.header) },
+      ...rows.map((r) => [
+        // Blank rather than 0 for a student with no paper — a rank of nothing
+        // must not sort as if it were the best.
+        r.rank === null ? '' : r.rank,
+        r.student.regNo || '',
+        r.student.name || '',
+        r.student.email || '',
+        rowStatus(r),
+        r.status === 'submitted' ? r.score : '',
+        r.status === 'submitted' ? r.totalMarks : '',
+        r.status === 'submitted' ? r.percent : '',
+        verdict(r),
+        r.status === 'submitted' ? r.correctCount : '',
+        r.status === 'submitted' ? r.wrongCount : '',
+        r.status === 'submitted' ? r.unansweredCount : '',
+        r.minutesTaken === null ? '' : r.minutesTaken,
+        localStamp(r.submittedAt),
+        r.makeupStatus ? MAKEUP_WORD[r.makeupStatus] || r.makeupStatus : '',
+      ]),
+    ],
+  };
+
+  // A merit list on its own sheet — the thing most likely to be printed and
+  // pinned to a wall.
+  const merit = {
+    name: 'Rank list',
+    freezeHeader: true,
+    columns: [
+      { header: 'Rank', width: 7 },
+      { header: 'Reg. No.', width: 12 },
+      { header: 'Student', width: 28 },
+      { header: 'Score', width: 8 },
+      { header: 'Percent', width: 9 },
+      { header: 'Result', width: 10 },
+    ],
+    rows: [
+      { header: ['Rank', 'Reg. No.', 'Student', 'Score', 'Percent', 'Result'] },
+      ...ranked.map((r) => [
+        r.rank, r.student.regNo || '', r.student.name || '',
+        r.score, r.percent, verdict(r),
+      ]),
+    ],
+  };
+
+  return [overview, results, merit];
+}
+
+/**
+ * The printable report. The teacher's browser makes the PDF from it, which is
+ * why there is no PDF library anywhere in this project.
+ */
+function examReportHtml(report) {
+  const { exam, rows, summary } = report;
+  const e = (v) => String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const stat = (label, value, foot = '') => `
+    <div class="stat">
+      <span class="label">${e(label)}</span>
+      <b>${e(value)}</b>
+      ${foot ? `<span class="foot">${e(foot)}</span>` : ''}
+    </div>`;
+
+  const resultCell = (r) => {
+    if (r.status !== 'submitted') return '<td class="muted">—</td>';
+    if (r.passed === null) return '<td class="muted">not graded</td>';
+    return r.passed
+      ? '<td class="pass">✓ Pass</td>'
+      : '<td class="fail">✕ Fail</td>';
+  };
+
+  const body = rows.map((r) => `
+    <tr class="${r.status === 'submitted' ? '' : 'absent-row'}">
+      <td class="num rank">${r.rank === null ? '—' : e(r.rank)}</td>
+      <td class="mono">${e(r.student.regNo)}</td>
+      <td><b>${e(r.student.name)}</b><br><span class="small">${e(r.student.email)}</span></td>
+      <td>${e(rowStatus(r))}${r.makeupStatus
+        ? `<br><span class="small">${e(MAKEUP_WORD[r.makeupStatus] || r.makeupStatus)}</span>` : ''}</td>
+      <td class="num">${r.status === 'submitted' ? `${e(r.score)} / ${e(r.totalMarks)}` : '—'}</td>
+      <td class="num">${r.status === 'submitted' ? `${e(r.percent)}%` : '—'}</td>
+      ${resultCell(r)}
+      <td class="num">${r.status === 'submitted' ? e(r.correctCount) : '—'}</td>
+      <td class="num">${r.status === 'submitted' ? e(r.wrongCount) : '—'}</td>
+      <td class="num">${r.status === 'submitted' ? e(r.unansweredCount) : '—'}</td>
+      <td class="num">${r.minutesTaken === null ? '—' : e(r.minutesTaken)}</td>
+      <td class="small">${e(localStamp(r.submittedAt)) || '—'}</td>
+    </tr>`).join('');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${e(exam.title || 'Exam')} — results</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #f4f5f9; color: #12172a;
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .bar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; gap: 10px; align-items: center;
+    background: #fff; border-bottom: 1px solid #e0e3ec; padding: 12px 20px;
+  }
+  .bar b { font-size: 14px; margin-right: auto; }
+  .bar button {
+    font: inherit; font-weight: 650; cursor: pointer;
+    border: 0; border-radius: 9px; padding: 9px 16px;
+    background: #2a78d6; color: #fff;
+  }
+  .sheet { max-width: 1040px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #4c5573; margin: 0 0 18px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 20px; font-size: 13px; color: #4c5573; }
+  .meta b { color: #12172a; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; }
+  .stat {
+    border: 1px solid #e0e3ec; border-radius: 10px; background: #fff;
+    padding: 10px 14px; min-width: 108px;
+  }
+  .stat .label { font-size: 11px; color: #4c5573; display: block; text-transform: uppercase; letter-spacing: .04em; }
+  .stat b { font-size: 20px; }
+  .stat .foot { font-size: 11px; color: #7b849e; display: block; }
+  h2 { font-size: 15px; margin: 26px 0 8px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 9px; border-bottom: 1px solid #e0e3ec; vertical-align: top; }
+  th {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+    color: #4c5573; background: #f4f5f9; border-bottom: 1px solid #cdd2df;
+  }
+  thead { display: table-header-group; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.rank { font-weight: 700; }
+  td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .small { font-size: 11.5px; color: #4c5573; }
+  .muted { color: #7b849e; }
+  .pass { color: #1a7f4b; font-weight: 650; white-space: nowrap; }
+  .fail { color: #c02c2c; font-weight: 650; white-space: nowrap; }
+  tr.absent-row td { background: #fbfbfd; color: #4c5573; }
+  .foot-note { margin-top: 22px; font-size: 11.5px; color: #7b849e; }
+  .top3 td.rank { color: #2a78d6; }
+
+  @page { size: A4 landscape; margin: 12mm; }
+  @media print {
+    .bar { display: none; }
+    body { background: #fff; }
+    .sheet { max-width: none; padding: 0; }
+    tr { break-inside: avoid; }
+    table { font-size: 11px; }
+    th, td { padding: 5px 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <b>${e(exam.title || 'Exam')} — results</b>
+  <button onclick="window.print()">Save as PDF / Print</button>
+</div>
+
+<div class="sheet">
+  <h1>${e(exam.title || 'Untitled exam')}</h1>
+  <p class="sub">Exam results · Learner's Byte, in association with Udayan Care</p>
+
+  <div class="meta">
+    <span>Batch <b>${e(exam.batch ? exam.batch.name : '—')}</b></span>
+    <span>Course <b>${e(exam.batch ? exam.batch.course || '—' : '—')}</b></span>
+    <span>Date <b>${e(exam.examDate)}</b></span>
+    <span>Time <b>${e(exam.startTime)}${exam.endTime ? ` – ${e(exam.endTime)}` : ''}</b></span>
+    <span>Questions <b>${e(exam.questionCount)}</b></span>
+    <span>Total marks <b>${e(exam.marksTotal)}</b></span>
+    <span>Pass marks <b>${summary.passMarks === null ? 'not set' : e(summary.passMarks)}</b></span>
+    ${exam.audience === 'selected' ? '<span><b>Makeup paper</b> (selected students)</span>' : ''}
+  </div>
+
+  <div class="stats">
+    ${stat('Students', summary.students, 'on this paper')}
+    ${stat('Submitted', summary.submitted, `${summary.notStarted} not started`)}
+    ${stat('Passed', summary.passed, summary.passRule)}
+    ${stat('Did not pass', Math.max(0, summary.submitted - summary.passed))}
+    ${stat('Average', `${summary.average}%`)}
+    ${stat('Median', `${summary.median}%`)}
+    ${stat('Highest', `${summary.highest}%`)}
+    ${stat('Lowest', `${summary.lowest}%`)}
+    ${summary.missed ? stat('Missed', summary.missed, `${summary.awaitingDecision} awaiting a decision`) : ''}
+  </div>
+
+  <h2>Every student, ranked</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="num">Rank</th><th>Reg. No.</th><th>Student</th><th>Status</th>
+        <th class="num">Score</th><th class="num">%</th><th>Result</th>
+        <th class="num">Correct</th><th class="num">Wrong</th><th class="num">Blank</th>
+        <th class="num">Minutes</th><th>Submitted at</th>
+      </tr>
+    </thead>
+    <tbody>${body || '<tr><td colspan="12" class="muted">No students on this paper yet.</td></tr>'}</tbody>
+  </table>
+
+  <p class="foot-note">
+    Ranked on marks scored. Students with the same marks share a rank.
+    Students who did not submit are listed after the ranked ones and are not ranked.
+    ${summary.passMarks === null
+    ? 'No pass mark was set for this paper, so "Passed" counts anyone at 40% or above.'
+    : `Pass mark: ${e(summary.passMarks)} of ${e(exam.marksTotal)}.`}
+    Generated ${e(localStamp(summary.generatedAt))}.
+  </p>
+</div>
+
+</body>
+</html>`;
 }
 
 /**
@@ -1355,86 +1806,38 @@ const routes = {
   /* Every student's score for one exam, plus who has not sat it. */
   'GET /api/admin/exam/results': async (req, res, url) => {
     await requireAdmin(req);
-    const exam = await store.getExam(url.searchParams.get('examId'));
-    if (!exam) fail('Exam not found.', 404);
+    send(res, 200, await buildExamReport(url.searchParams.get('examId')));
+  },
 
-    const [questions, rawAttempts, batchStudents, makeups, participants] = await Promise.all([
-      store.listQuestions(exam.id),
-      store.listAttempts({ examId: exam.id }),
-      store.listUsers({ role: 'student', batchId: exam.batchId }),
-      store.listMakeups({ examId: exam.id }),
-      exam.audience === 'selected' ? store.listParticipants(exam.id) : Promise.resolve(null),
-    ]);
+  /* The same report as a spreadsheet. Teacher only — requireAdmin sees to that,
+     and the browser sends the session cookie with the download like any other
+     request. */
+  'GET /api/admin/exam/report.xlsx': async (req, res, url) => {
+    await requireAdmin(req);
+    const report = await buildExamReport(url.searchParams.get('examId'));
+    const book = sheet.buildXlsx(examReportSheets(report));
 
-    // Anyone still "in progress" after the finish time is marked now, so the
-    // teacher sees a score rather than a paper that never came back.
-    const attempts = [];
-    for (const a of rawAttempts) attempts.push(await closeIfTimeIsUp(exam, a, questions));
-
-    // A restricted paper is only "missed" by the students it was given to.
-    const named = participants ? new Set(participants.map((p) => p.userId)) : null;
-    const students = named ? batchStudents.filter((s) => named.has(s.id)) : batchStudents;
-
-    const byUser = new Map(attempts.map((a) => [a.userId, a]));
-    const askedBy = new Map(makeups.map((m) => [m.userId, m]));
-    const window = grading.examWindow(exam, questions.length);
-    const closed = window.phase === 'closed';
-
-    const rows = students.map((student) => {
-      const attempt = byUser.get(student.id) || null;
-      const request = askedBy.get(student.id) || null;
-      return {
-        student: {
-          id: student.id, regNo: student.regNo, name: student.name, email: student.email,
-        },
-        status: attempt ? attempt.status : 'not-started',
-        // Only meaningful once the paper has shut.
-        missed: closed && !attempt,
-        makeupStatus: request ? request.status : null,
-        makeupId: request ? request.id : null,
-        makeupReason: request ? request.reason : '',
-        attemptId: attempt ? attempt.id : null,
-        score: attempt ? attempt.score : 0,
-        totalMarks: attempt ? attempt.totalMarks : 0,
-        percent: attempt ? attempt.percent : 0,
-        correctCount: attempt ? attempt.correctCount : 0,
-        wrongCount: attempt ? attempt.wrongCount : 0,
-        unansweredCount: attempt ? attempt.unansweredCount : 0,
-        submittedAt: attempt ? attempt.submittedAt : null,
-        passed: attempt && attempt.status === 'submitted'
-          ? grading.passOutcome(exam, attempt.score).passed
-          : null,
-      };
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${reportFilename(report.exam, 'xlsx')}"`,
+      'Content-Length': book.length,
+      'Cache-Control': 'no-store',
     });
+    res.end(book);
+  },
 
-    const done = rows.filter((r) => r.status === 'submitted');
-    const totalMarks = Math.round(questions.reduce((s, q) => s + q.marks, 0) * 100) / 100;
-    const scores = done.map((r) => r.percent).sort((a, b) => a - b);
+  /* The same report as a page built for printing — the teacher's browser turns
+     it into the PDF, which keeps this app free of a PDF library. */
+  'GET /api/admin/exam/report.html': async (req, res, url) => {
+    await requireAdmin(req);
+    const report = await buildExamReport(url.searchParams.get('examId'));
+    const html = examReportHtml(report);
 
-    send(res, 200, {
-      exam: { ...exam, questionCount: questions.length, marksTotal: totalMarks },
-      rows: rows.sort((a, b) => b.percent - a.percent || a.student.name.localeCompare(b.student.name)),
-      summary: {
-        students: rows.length,
-        submitted: done.length,
-        inProgress: rows.filter((r) => r.status === 'in_progress').length,
-        notStarted: rows.filter((r) => r.status === 'not-started').length,
-        missed: rows.filter((r) => r.missed).length,
-        awaitingDecision: rows.filter((r) => r.makeupStatus === 'pending').length,
-        closed,
-        average: done.length
-          ? Math.round((done.reduce((s, r) => s + r.percent, 0) / done.length) * 10) / 10
-          : 0,
-        highest: scores.length ? scores[scores.length - 1] : 0,
-        lowest: scores.length ? scores[0] : 0,
-        passMarks: grading.passMarkOf(exam),
-        // Against the teacher's pass mark when there is one; otherwise the old
-        // 40% rule of thumb, so this number never silently disappears.
-        passed: grading.passMarkOf(exam) === null
-          ? done.filter((r) => r.percent >= 40).length
-          : done.filter((r) => r.passed).length,
-      },
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
     });
+    res.end(html);
   },
 
   /* Every submitted attempt across every exam — the admin Reports tab. */

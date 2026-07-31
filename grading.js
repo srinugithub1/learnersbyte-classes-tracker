@@ -76,7 +76,11 @@ function examWindow(exam, questionCount, attempt = null, now = new Date()) {
       message: 'You have already submitted this exam.' };
   }
   if (attempt && attempt.status === 'in_progress') {
-    if (now > endsAt) {
+    // Only a teacher-set finish time takes a paper away mid-attempt. Without
+    // one the finish is merely questions x seconds — an estimate, not a
+    // promise — and a student who reads slowly between questions would find
+    // their paper snatched away for no stated reason.
+    if (fixedEnd && now > endsAt) {
       return { ...base, phase: 'closed', canStart: false, expired: true,
         message: 'Time is up — this exam has been submitted for you.' };
     }

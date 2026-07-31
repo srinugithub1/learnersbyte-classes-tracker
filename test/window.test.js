@@ -92,6 +92,13 @@ ok('past the end they may not', after.canStart === false);
 ok('and the paper is flagged for closing', after.expired === true);
 ok('with an honest message', /submitted for you/i.test(after.message), after.message);
 
+// A paper with no stated finish must never be taken away mid-attempt: its
+// "end" is only questions x seconds, which is an estimate, and the per-question
+// timers already stop a student running long.
+const loose = win(openEnded, at('23:00'), busy);
+ok('an open-ended paper is not closed on the student', loose.expired === false);
+ok('and they may still carry on', loose.canStart === true);
+
 const done = win(fixed, at('11:05'), { status: 'submitted' });
 ok('an already-submitted paper is never re-closed', done.expired === false);
 ok('and reads as completed', done.phase === 'completed');

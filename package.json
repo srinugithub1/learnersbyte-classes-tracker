@@ -8,8 +8,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node test/logic.test.js && node test/parse.test.js && node test/window.test.js",
-    "test:all": "node test/logic.test.js && node test/parse.test.js && node test/e2e.test.js && node test/exam.test.js && node test/attempt.test.js && node test/makeup.test.js && node test/backfill.test.js && node test/window.test.js && node test/endtime.test.js"
+    "test": "node test/logic.test.js && node test/parse.test.js && node test/window.test.js && node test/sheet.test.js",
+    "test:all": "node test/logic.test.js && node test/parse.test.js && node test/e2e.test.js && node test/exam.test.js && node test/attempt.test.js && node test/makeup.test.js && node test/backfill.test.js && node test/window.test.js && node test/endtime.test.js && node test/sheet.test.js && node test/report.test.js"
   },
   "main": "server.js"
 }

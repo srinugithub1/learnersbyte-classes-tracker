@@ -731,6 +731,11 @@ function renderExamTable() {
       <td class="nowrap">
         <button class="btn ghost sm" data-openexam="${e.id}">Open</button>
         <button class="btn ghost sm" data-results="${e.id}">Results</button>
+        <a class="btn ghost sm" title="Printable report — save as PDF"
+           href="/api/admin/exam/report.html?examId=${encodeURIComponent(e.id)}"
+           target="_blank" rel="noopener">↧ PDF</a>
+        <a class="btn ghost sm" title="Spreadsheet of every student's marks"
+           href="/api/admin/exam/report.xlsx?examId=${encodeURIComponent(e.id)}">↧ Excel</a>
         <button class="btn ghost sm" data-delexam="${e.id}">Delete</button>
       </td>
     </tr>`).join('')
@@ -1503,13 +1508,26 @@ async function openExamResults(examId) {
           <button class="btn sm" id="setMakeup" style="margin-top:8px">Set a makeup paper</button>
         </div>` : ''}
 
+        <div class="pick-toolbar" style="margin-bottom:12px">
+          <b class="small">Download this report</b>
+          <a class="btn ghost sm" href="/api/admin/exam/report.html?examId=${encodeURIComponent(exam.id)}"
+             target="_blank" rel="noopener">↧ PDF</a>
+          <a class="btn ghost sm" href="/api/admin/exam/report.xlsx?examId=${encodeURIComponent(exam.id)}">
+            ↧ Excel</a>
+          <span class="small muted">Teachers only. Ranked, with every student's marks.</span>
+        </div>
+
         <div class="table-wrap"><table>
           <thead><tr>
+            <th class="tnum">Rank</th>
             <th>Student</th><th>Status</th><th class="tnum">Correct</th><th class="tnum">Wrong</th>
             <th class="tnum">Unanswered</th><th class="tnum">Score</th><th>Submitted</th><th></th>
           </tr></thead>
           <tbody>${rows.length ? rows.map((r) => `
             <tr>
+              <td class="tnum" style="font-weight:700">${r.rank === null || r.rank === undefined
+                ? '<span class="muted">—</span>'
+                : r.rank}</td>
               <td>${who(r.student)}</td>
               <td>${r.status === 'submitted'
                 ? '<span class="pill present"><span class="ico" aria-hidden="true">✓</span>Submitted</span>'
@@ -1538,7 +1556,7 @@ async function openExamResults(examId) {
               <td>${r.attemptId && r.status === 'submitted'
                 ? `<button class="btn ghost sm" data-paper="${r.attemptId}">Paper</button>` : ''}</td>
             </tr>`).join('')
-            : '<tr><td colspan="8" class="table-empty">No students in this batch yet.</td></tr>'}
+            : '<tr><td colspan="9" class="table-empty">No students in this batch yet.</td></tr>'}
           </tbody>
         </table></div>`,
       footer: '<button class="btn ghost" data-close>Close</button>',
